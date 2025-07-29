@@ -1,0 +1,11 @@
+# Core dependencies
+pygame==2.6.1
+pypsa==0.35.0
+pandas>=2.3.0
+numpy>=2.3.1
+matplotlib>=3.10.3
+
+# Development dependencies
+black
+pylint
+pytest 

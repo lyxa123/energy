@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    image: lyxatang/energy-simulator:latest
+    volumes:
+      - .:/app
+      - /tmp/.X11-unix:/tmp/.X11-unix  # X11 forwarding
+    environment:
+      - DISPLAY=${DISPLAY}
+      - PYTHONUNBUFFERED=1
+    devices:
+      - /dev/dri:/dev/dri  # GPU access if available
+    command: xvfb-run python pyPSA_db.py 

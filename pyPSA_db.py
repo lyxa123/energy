@@ -6,9 +6,10 @@ import math
 import collections
 from datetime import datetime
 import sys
+import json # Added for loading saved instances
 
 # Add imports at the top
-from config_manager import ConfigurationManager, ConfigurationScreen
+from config_manager import ConfigurationManager, ConfigurationScreen, ConfigChangeObserver
 
 # Colors
 WHITE = (255, 255, 255)
@@ -27,25 +28,41 @@ HELP_BG = (40, 40, 40)
 
 # Component Types
 COMPONENT_TYPES = {
+    "DEFAULT_COMPONENTS": {
+        "label": "▼",  # Changed to dropdown arrow
+        "description": "Default",  # Shortened
+        "icon_color": WHITE,
+        "is_section": True  # Mark as a section header
+    },
     "SUPPLIER": {
         "label": "S",
         "description": "Power Supplier",
-        "icon_color": GREEN
+        "icon_color": GREEN,
+        "is_section": False
     },
     "INDUCTIVE_CONSUMER": {
         "label": "CI",
         "description": "Inductive Load",
-        "icon_color": BLUE
+        "icon_color": BLUE,
+        "is_section": False
     },
     "CAPACITIVE_CONSUMER": {
         "label": "CC",
         "description": "Capacitive Load",
-        "icon_color": BLUE
+        "icon_color": BLUE,
+        "is_section": False
     },
     "RESISTIVE_CONSUMER": {
         "label": "CR",
         "description": "Resistive Load",
-        "icon_color": BLUE
+        "icon_color": BLUE,
+        "is_section": False
+    },
+    "SAVED_INSTANCES": {
+        "label": "▼",  # Changed to dropdown arrow
+        "description": "Saved",  # Shortened
+        "icon_color": YELLOW,
+        "is_section": True  # Mark as a section header
     }
 }
 
@@ -458,12 +475,12 @@ class PowerConsumer(Entity):
                 self.power_factor = DEFAULT_RESISTIVE_PF
                 self.q_demand_rate = 0
         
-        self.connected_to = None
+        self.connected_supplier = None  # Changed from connected_to to connected_supplier
         self.is_connected = False
 
     def connect(self, supplier):
         if supplier is not None:
-            self.connected_to = supplier
+            self.connected_supplier = supplier  # Updated to use connected_supplier
             self.is_connected = True
             supplier.connect_consumer(self)
             if network is not None:
@@ -486,10 +503,10 @@ class PowerConsumer(Entity):
             add_log_message(f"Connected {self.label_text} (P={self.p_demand_rate:.1f}MW, Q={self.q_demand_rate:.1f}MVAr)")
 
     def disconnect(self):
-        if self.connected_to is not None:
-            if self in self.connected_to.connected_consumers:
-                self.connected_to.connected_consumers.remove(self)
-            self.connected_to = None
+        if self.connected_supplier is not None:  # Updated to use connected_supplier
+            if self in self.connected_supplier.connected_consumers:
+                self.connected_supplier.connected_consumers.remove(self)
+            self.connected_supplier = None  # Updated to use connected_supplier
             self.is_connected = False
             if network is not None:
                 try:
@@ -510,9 +527,9 @@ class PowerConsumer(Entity):
     def update(self):
         if not self.is_connected:
             self.update_status_color(BLUE)  # Original color
-        elif self.connected_to:
+        elif self.connected_supplier:  # Updated to use connected_supplier
             # Direct voltage from supplier - no additional drops
-            voltage = self.connected_to.voltage_pu
+            voltage = self.connected_supplier.voltage_pu  # Updated to use connected_supplier
             
             # Direct threshold-based color updates - exact thresholds from pyPSA.py
             if voltage < 0.95:
@@ -525,13 +542,13 @@ class PowerConsumer(Entity):
         self.redraw()
 
     def draw_connections(self, surface):
-        if self.connected_to:
+        if self.connected_supplier:  # Updated to use connected_supplier
             start_pos = (self.rect.x + self.rect.width//2, self.rect.y + self.rect.height//2)
-            end_pos = (self.connected_to.rect.x + self.connected_to.rect.width//2,
-                      self.connected_to.rect.y + self.connected_to.rect.height//2)
+            end_pos = (self.connected_supplier.rect.x + self.connected_supplier.rect.width//2,
+                      self.connected_supplier.rect.y + self.connected_supplier.rect.height//2)
             
             # Exact voltage-based color calculation from pyPSA.py
-            voltage = self.connected_to.voltage_pu
+            voltage = self.connected_supplier.voltage_pu
             if voltage >= 0.98:
                 line_color = GREEN
             elif voltage >= 0.95:
@@ -866,34 +883,33 @@ class SidebarComponent:
             SIDEBAR_ITEM_HEIGHT
         )
         self.is_hovered = False
+        self.is_expanded = False
+        self.saved_instances = []
+        self.hovered_instance = None
+        self.default_components = []
         
-    def handle_event(self, event):
-        global selected_grid_pos, selected_component_type
-        if event.type == pygame.MOUSEMOTION:
-            self.is_hovered = self.rect.collidepoint(event.pos)
-        elif event.type == pygame.MOUSEBUTTONDOWN:
-            if event.button == 1 and self.rect.collidepoint(event.pos):
-                # If we have a selected grid position, place the component immediately
-                if selected_grid_pos:
-                    if self.type == "SUPPLIER":
-                        add_supplier_to_network(selected_grid_pos[0], selected_grid_pos[1])
-                    else:
-                        consumer_type = None
-                        if self.type == "INDUCTIVE_CONSUMER":
-                            consumer_type = CONSUMER_TYPE_INDUCTIVE
-                        elif self.type == "CAPACITIVE_CONSUMER":
-                            consumer_type = CONSUMER_TYPE_CAPACITIVE
-                        elif self.type == "RESISTIVE_CONSUMER":
-                            consumer_type = CONSUMER_TYPE_RESISTIVE
-                        
-                        if consumer_type:
-                            add_consumer_to_network(selected_grid_pos[0], selected_grid_pos[1], consumer_type)
-                    
-                    # Clear selection after placing
-                    selected_grid_pos = None
-                return True
-        return False
-        
+        # Load saved instances if this is the SAVED_INSTANCES component
+        if self.type == "SAVED_INSTANCES" and config_manager:
+            self.refresh_instances()
+        # Set up default components if this is the DEFAULT_COMPONENTS component
+        elif self.type == "DEFAULT_COMPONENTS":
+            self.default_components = [
+                ("SUPPLIER", COMPONENT_TYPES["SUPPLIER"]),
+                ("INDUCTIVE_CONSUMER", COMPONENT_TYPES["INDUCTIVE_CONSUMER"]),
+                ("CAPACITIVE_CONSUMER", COMPONENT_TYPES["CAPACITIVE_CONSUMER"]),
+                ("RESISTIVE_CONSUMER", COMPONENT_TYPES["RESISTIVE_CONSUMER"])
+            ]
+    
+    def get_bottom(self):
+        """Get the bottom y-coordinate of this component including any expanded content"""
+        bottom = self.rect.bottom
+        if self.is_expanded:
+            if self.type == "SAVED_INSTANCES" and self.saved_instances:
+                bottom += len(self.saved_instances) * (SIDEBAR_ITEM_HEIGHT - 15)
+            elif self.type == "DEFAULT_COMPONENTS" and self.default_components:
+                bottom += len(self.default_components) * (SIDEBAR_ITEM_HEIGHT - 15)
+        return bottom
+    
     def draw(self, surface):
         # Draw component card background
         bg_color = SIDEBAR_ITEM_HOVER if self.is_hovered else SIDEBAR_ITEM_BG
@@ -929,35 +945,224 @@ class SidebarComponent:
         desc_y = self.rect.centery - desc_surface.get_height() // 2
         surface.blit(desc_surface, (desc_x, desc_y))
 
-class Sidebar:
+        # Draw expanded items (saved instances or default components)
+        if self.is_expanded:
+            nested_y = self.rect.bottom + 5
+            
+            if self.type == "SAVED_INSTANCES" and self.saved_instances:
+                for instance in self.saved_instances:
+                    instance_rect = pygame.Rect(
+                        self.rect.x + 10,  # Indent to show nesting
+                        nested_y,
+                        self.rect.width - 20,  # Reduce width to show nesting
+                        SIDEBAR_ITEM_HEIGHT - 20
+                    )
+                    
+                    # Draw instance background
+                    bg_color = SIDEBAR_ITEM_HOVER if self.hovered_instance == instance else SIDEBAR_ITEM_BG
+                    pygame.draw.rect(surface, bg_color, instance_rect, border_radius=5)
+                    
+                    # Draw instance name
+                    name_surface = desc_font.render(instance[1], True, WHITE)  # name column
+                    surface.blit(name_surface, (instance_rect.x + 10, instance_rect.y + 5))
+                    
+                    # Draw instance type and description
+                    type_text = instance[3].replace("_", " ")  # component_type column
+                    if instance[2]:  # If has description
+                        type_text += f" - {instance[2]}"
+                    type_surface = desc_font.render(type_text, True, GREY)
+                    surface.blit(type_surface, (instance_rect.x + 10, instance_rect.y + 25))
+                    
+                    nested_y += SIDEBAR_ITEM_HEIGHT - 15
+            
+            elif self.type == "DEFAULT_COMPONENTS" and self.default_components:
+                for comp_type, comp_config in self.default_components:
+                    instance_rect = pygame.Rect(
+                        self.rect.x + 10,  # Indent to show nesting
+                        nested_y,
+                        self.rect.width - 20,  # Reduce width to show nesting
+                        SIDEBAR_ITEM_HEIGHT - 20
+                    )
+                    
+                    # Draw component background
+                    bg_color = SIDEBAR_ITEM_HOVER if self.hovered_instance == (comp_type, comp_config) else SIDEBAR_ITEM_BG
+                    pygame.draw.rect(surface, bg_color, instance_rect, border_radius=5)
+                    
+                    # Draw component preview
+                    preview_size = min(instance_rect.height - 10, CUBE_SIZE // 2)
+                    center_x = instance_rect.x + 20 + preview_size
+                    center_y = instance_rect.centery
+                    
+                    points = [
+                        (center_x, center_y - preview_size//2),
+                        (center_x + preview_size//2, center_y),
+                        (center_x, center_y + preview_size//2),
+                        (center_x - preview_size//2, center_y)
+                    ]
+                    
+                    pygame.draw.polygon(surface, comp_config["icon_color"], points)
+                    pygame.draw.polygon(surface, darken_color(comp_config["icon_color"], 0.7), points, 2)
+                    
+                    # Draw component label
+                    label_surface = font.render(comp_config["label"], True, WHITE)
+                    label_rect = label_surface.get_rect(center=(center_x, center_y))
+                    surface.blit(label_surface, label_rect)
+                    
+                    # Draw component description
+                    desc_surface = desc_font.render(comp_config["description"], True, SIDEBAR_TEXT)
+                    desc_x = center_x + preview_size + 10
+                    desc_y = instance_rect.centery - desc_surface.get_height() // 2
+                    surface.blit(desc_surface, (desc_x, desc_y))
+                    
+                    nested_y += SIDEBAR_ITEM_HEIGHT - 15
+
+    def handle_event(self, event):
+        global selected_grid_pos
+        
+        if event.type == pygame.MOUSEMOTION:
+            self.is_hovered = self.rect.collidepoint(event.pos)
+            
+            # Check instance hover if expanded
+            if self.is_expanded:
+                nested_y = self.rect.bottom + 5
+                items = self.saved_instances if self.type == "SAVED_INSTANCES" else self.default_components
+                if items:
+                    for item in items:
+                        instance_rect = pygame.Rect(
+                            self.rect.x + 10,  # Indent to show nesting
+                            nested_y,
+                            self.rect.width - 20,  # Reduce width to show nesting
+                            SIDEBAR_ITEM_HEIGHT - 20
+                        )
+                        if instance_rect.collidepoint(event.pos):
+                            self.hovered_instance = item
+                            return True
+                        nested_y += SIDEBAR_ITEM_HEIGHT - 15
+                    self.hovered_instance = None
+        
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:  # Left click
+                if self.rect.collidepoint(event.pos):
+                    self.is_expanded = not self.is_expanded
+                    return True
+                
+                if self.is_expanded:
+                    nested_y = self.rect.bottom + 5
+                    
+                    if self.type == "SAVED_INSTANCES" and self.saved_instances:
+                        for instance in self.saved_instances:
+                            instance_rect = pygame.Rect(
+                                self.rect.x + 10,  # Indent to show nesting
+                                nested_y,
+                                self.rect.width - 20,  # Reduce width to show nesting
+                                SIDEBAR_ITEM_HEIGHT - 20
+                            )
+                            
+                            if instance_rect.collidepoint(event.pos) and selected_grid_pos:
+                                # Load instance parameters
+                                instance_params = json.loads(instance[4])  # parameters column
+                                
+                                if instance[3] == "SUPPLIER":  # component_type column
+                                    supplier = add_supplier_to_network(selected_grid_pos[0], selected_grid_pos[1])
+                                    if supplier and instance_params:
+                                        supplier.p_nom = instance_params.get("p_nom_mw", 1000.0)
+                                        supplier.v_nom = instance_params.get("v_nom_kv", 110.0)
+                                        for consumer in supplier.connected_consumers:
+                                            consumer.update()
+                                else:
+                                    consumer_type = None
+                                    if instance[3] == "INDUCTIVE_CONSUMER":
+                                        consumer_type = CONSUMER_TYPE_INDUCTIVE
+                                    elif instance[3] == "CAPACITIVE_CONSUMER":
+                                        consumer_type = CONSUMER_TYPE_CAPACITIVE
+                                    elif instance[3] == "RESISTIVE_CONSUMER":
+                                        consumer_type = CONSUMER_TYPE_RESISTIVE
+                                    
+                                    if consumer_type:
+                                        consumer = add_consumer_to_network(selected_grid_pos[0], selected_grid_pos[1], consumer_type)
+                                        if consumer and instance_params:
+                                            consumer.p_demand_rate = instance_params.get("p_demand_rate", 5.0)
+                                            consumer.power_factor = instance_params.get("power_factor", 0.8)
+                                            if consumer.connected_supplier:
+                                                consumer.update()
+                                
+                                selected_grid_pos = None
+                                return True
+                            nested_y += SIDEBAR_ITEM_HEIGHT - 15
+                    
+                    elif self.type == "DEFAULT_COMPONENTS" and self.default_components:
+                        for comp_type, comp_config in self.default_components:
+                            instance_rect = pygame.Rect(
+                                self.rect.x + 10,  # Indent to show nesting
+                                nested_y,
+                                self.rect.width - 20,  # Reduce width to show nesting
+                                SIDEBAR_ITEM_HEIGHT - 20
+                            )
+                            if instance_rect.collidepoint(event.pos) and selected_grid_pos:
+                                if comp_type == "SUPPLIER":
+                                    add_supplier_to_network(selected_grid_pos[0], selected_grid_pos[1])
+                                else:
+                                    consumer_type = None
+                                    if comp_type == "INDUCTIVE_CONSUMER":
+                                        consumer_type = CONSUMER_TYPE_INDUCTIVE
+                                    elif comp_type == "CAPACITIVE_CONSUMER":
+                                        consumer_type = CONSUMER_TYPE_CAPACITIVE
+                                    elif comp_type == "RESISTIVE_CONSUMER":
+                                        consumer_type = CONSUMER_TYPE_RESISTIVE
+                                    
+                                    if consumer_type:
+                                        add_consumer_to_network(selected_grid_pos[0], selected_grid_pos[1], consumer_type)
+                                
+                                selected_grid_pos = None
+                                return True
+                            nested_y += SIDEBAR_ITEM_HEIGHT - 15
+        return False
+        
+    def refresh_instances(self):
+        """Refresh the list of saved instances"""
+        if self.type == "SAVED_INSTANCES" and config_manager:
+            self.saved_instances = config_manager.get_saved_instances()
+            # Force redraw by toggling expansion if expanded
+            if self.is_expanded:
+                self.is_expanded = False
+                self.is_expanded = True
+
+class Sidebar(ConfigChangeObserver):
     def __init__(self):
         self.rect = pygame.Rect(MAIN_AREA_WIDTH, 0, SIDEBAR_WIDTH, SCREEN_HEIGHT)
         self.components = []
+        if config_manager:
+            config_manager.add_observer(self)
         self.initialize_components()
-        
+
+    def on_config_change(self, change_type):
+        """Handle configuration changes"""
+        if change_type in ["instance_saved", "instance_deleted"]:
+            for component in self.components:
+                if component.type == "SAVED_INSTANCES":
+                    component.refresh_instances()
+                    break
+    
     def initialize_components(self):
+        """Initialize sidebar with only Default and Saved sections"""
         y = SIDEBAR_TITLE_HEIGHT
-        for component_type in COMPONENT_TYPES:
-            self.components.append(
-                SidebarComponent(component_type, y)
-            )
-            y += SIDEBAR_ITEM_HEIGHT + SIDEBAR_ITEM_MARGIN
-            
+        # Only create Default and Saved sections
+        self.components = [
+            SidebarComponent("DEFAULT_COMPONENTS", y),
+            SidebarComponent("SAVED_INSTANCES", y + SIDEBAR_ITEM_HEIGHT + SIDEBAR_ITEM_MARGIN)
+        ]
+        # Start with Default section expanded
+        self.components[0].is_expanded = True
+
     def handle_event(self, event):
-        global selected_component_type
-        
+        """Handle events for the sidebar and its components"""
         for component in self.components:
             if component.handle_event(event):
-                # Deselect all components
-                for c in self.components:
-                    c.is_selected = False
-                # Select this component
-                component.is_selected = True
-                selected_component_type = component.type
                 return True
         return False
     
     def draw(self, surface):
+        """Draw the sidebar and its components"""
         # Draw sidebar background
         pygame.draw.rect(surface, SIDEBAR_BG, self.rect)
         
@@ -974,8 +1179,12 @@ class Sidebar:
         surface.blit(title_surface, (title_x, (SIDEBAR_TITLE_HEIGHT - title_surface.get_height()) // 2))
         
         # Draw components
+        current_y = SIDEBAR_TITLE_HEIGHT
         for component in self.components:
+            component.rect.y = current_y
             component.draw(surface)
+            current_y = component.get_bottom()
+            current_y += SIDEBAR_ITEM_MARGIN
 
 def main():
     global screen, log_font, entity_font, menu_font, selected_grid_pos, selected_component_type, config_manager
@@ -990,13 +1199,13 @@ def main():
     entity_font = pygame.font.SysFont("Arial", ENTITY_FONT_SIZE, bold=True)
     menu_font = pygame.font.SysFont("Arial", MENU_ITEM_SIZE)
     
-    # Initialize configuration manager
+    # Initialize configuration manager first
     config_manager = ConfigurationManager('power_grid.db')
     
     # Create selection highlight
     selection_highlight = SelectionHighlight()
     
-    # Create sidebar
+    # Create sidebar after config_manager
     sidebar = Sidebar()
     
     # Show start menu
@@ -1048,7 +1257,6 @@ def main():
                 keys_pressed = pygame.key.get_pressed()
                 
                 for event in pygame.event.get():
-                    # Handle quit
                     if event.type == pygame.QUIT:
                         running = False
                         continue
@@ -1062,7 +1270,7 @@ def main():
                         running = False
                         continue
 
-                    # Handle sidebar events first (component selection and placement)
+                    # Handle sidebar events
                     if sidebar.handle_event(event):
                         continue
 
@@ -1088,7 +1296,7 @@ def main():
                                     connecting_consumer.connect(supplier_entity)
                                 else:
                                     # Check if clicked empty space or different entity
-                                    if connecting_consumer.connected_to:
+                                    if connecting_consumer.connected_supplier: # Updated to use connected_supplier
                                         connecting_consumer.disconnect()
                                 connecting_consumer = None
                                 temp_connection_line_end = None
