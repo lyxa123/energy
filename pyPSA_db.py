@@ -465,15 +465,15 @@ class PowerConsumer(Entity):
         else:
             # Use default values if config_manager not initialized
             self.p_demand_rate = DEFAULT_CONSUMER_P_DEMAND
-            if consumer_type == CONSUMER_TYPE_INDUCTIVE:
-                self.power_factor = DEFAULT_INDUCTIVE_PF
-                self.q_demand_rate = self.p_demand_rate * math.tan(math.acos(DEFAULT_INDUCTIVE_PF))
-            elif consumer_type == CONSUMER_TYPE_CAPACITIVE:
-                self.power_factor = DEFAULT_CAPACITIVE_PF
-                self.q_demand_rate = -self.p_demand_rate * math.tan(math.acos(DEFAULT_CAPACITIVE_PF))
-            else:  # Resistive
-                self.power_factor = DEFAULT_RESISTIVE_PF
-                self.q_demand_rate = 0
+        if consumer_type == CONSUMER_TYPE_INDUCTIVE:
+            self.power_factor = DEFAULT_INDUCTIVE_PF
+            self.q_demand_rate = self.p_demand_rate * math.tan(math.acos(DEFAULT_INDUCTIVE_PF))
+        elif consumer_type == CONSUMER_TYPE_CAPACITIVE:
+            self.power_factor = DEFAULT_CAPACITIVE_PF
+            self.q_demand_rate = -self.p_demand_rate * math.tan(math.acos(DEFAULT_CAPACITIVE_PF))
+        else:  # Resistive
+            self.power_factor = DEFAULT_RESISTIVE_PF
+            self.q_demand_rate = 0
         
         self.connected_supplier = None  # Changed from connected_to to connected_supplier
         self.is_connected = False
@@ -728,54 +728,114 @@ def draw_menu(screen, menu_items, selected_index, mouse_pos=None):
 
 # Modify the menu() function to include configuration option
 def menu():
-    menu_items = ["Start Simulation", "Configure Components", "Exit"]
-    selected_index = 0
+    """Display the main menu"""
+    # Initialize Pygame and create the screen
+    pygame.init()
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    pygame.display.set_caption("Energy City Simulator")
     
+    # Create font objects
+    title_font = pygame.font.SysFont("Arial", 48)
+    button_font = pygame.font.SysFont("Arial", 32)
+    
+    # Try to load background image
+    background_image = None
+    try:
+        background_image = pygame.image.load("assets/menu_background.png")
+        # Scale to fit screen if needed
+        background_image = pygame.transform.scale(background_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
+    except (pygame.error, FileNotFoundError):
+        print("Background image 'assets/menu_background.png' not found. Using default background.")
+        background_image = None
+    
+    # Button dimensions and positioning
+    button_width = 400
+    button_height = 60
+    left_margin = 50  # Distance from left edge
+    title_y = 100     # Title vertical position
+    title_spacing = 100  # Space between title and first button
+    button_spacing = 20  # Space between buttons
+    
+    # Create title surface
+    title_surface = title_font.render("Energy City Simulator", True, WHITE)
+    title_x = left_margin  # Left align with buttons
+    
+    # Create buttons
+    start_button = pygame.Rect(
+        left_margin,
+        title_y + title_spacing,
+        button_width,
+        button_height
+    )
+    
+    config_button = pygame.Rect(
+        left_margin,
+        start_button.bottom + button_spacing,
+        button_width,
+        button_height
+    )
+    
+    exit_button = pygame.Rect(
+        left_margin,
+        config_button.bottom + button_spacing,
+        button_width,
+        button_height
+    )
+    
+    # Main menu loop
     while True:
-        mouse_pos = pygame.mouse.get_pos()
+        # Draw background
+        if background_image:
+            screen.blit(background_image, (0, 0))
+        else:
+            screen.fill(BLACK)  # Fallback to black background
         
+        # Draw title with shadow/outline for better visibility
+        # Draw title shadow
+        title_shadow = title_font.render("Energy City Simulator", True, BLACK)
+        screen.blit(title_shadow, (title_x + 2, title_y + 2))
+        # Draw main title
+        screen.blit(title_surface, (title_x, title_y))
+        
+        # Draw buttons with semi-transparent background for better visibility
+        for button, text in [
+            (start_button, "Start Simulation"),
+            (config_button, "Configure Components"),
+            (exit_button, "Exit")
+        ]:
+            # Create semi-transparent surface for button background
+            button_surface = pygame.Surface((button.width, button.height))
+            button_surface.set_alpha(180)  # Semi-transparent
+            button_surface.fill(LOG_PANEL_BG)
+            screen.blit(button_surface, button.topleft)
+            
+            # Draw button border
+            pygame.draw.rect(screen, WHITE, button, width=2, border_radius=5)
+            
+            # Draw button text
+            text_surface = button_font.render(text, True, WHITE)
+            text_rect = text_surface.get_rect(center=button.center)
+            screen.blit(text_surface, text_rect)
+        
+        # Update display
+        pygame.display.flip()
+        
+        # Handle events
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                pygame.quit()
                 return "exit"
             
             if event.type == pygame.MOUSEBUTTONDOWN:
-                # Calculate button positions
-                for i in range(len(menu_items)):
-                    button_rect = pygame.Rect(
-                        (SCREEN_WIDTH - MENU_BUTTON_WIDTH) // 2,
-                        MENU_START_Y + i * (MENU_BUTTON_HEIGHT + MENU_BUTTON_PADDING),
-                        MENU_BUTTON_WIDTH,
-                        MENU_BUTTON_HEIGHT
-                    )
-                    if button_rect.collidepoint(mouse_pos):
-                        if i == 0:  # Start Simulation
-                            return "start"
-                        elif i == 1:  # Configure Components
-                            return "configure"
-                        else:  # Exit
-                            return "exit"
-            
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_UP:
-                    selected_index = (selected_index - 1) % len(menu_items)
-                elif event.key == pygame.K_DOWN:
-                    selected_index = (selected_index + 1) % len(menu_items)
-                elif event.key == pygame.K_RETURN:
-                    if selected_index == 0:
-                        return "start"
-                    elif selected_index == 1:
-                        return "configure"
-                    else:
+                if event.button == 1:  # Left click
+                    mouse_pos = event.pos
+                    if start_button.collidepoint(mouse_pos):
+                        return "simulation"
+                    elif config_button.collidepoint(mouse_pos):
+                        return "configuration"
+                    elif exit_button.collidepoint(mouse_pos):
+                        pygame.quit()
                         return "exit"
-        
-        # Draw menu
-        screen = pygame.display.get_surface()
-        screen.fill(BLACK)
-        draw_menu(screen, menu_items, selected_index, mouse_pos)
-        pygame.display.flip()
-        
-        clock = pygame.time.Clock()
-        clock.tick(FPS)
 
 def show_help_screen():
     """Show help screen with controls and information."""
@@ -909,7 +969,7 @@ class SidebarComponent:
             elif self.type == "DEFAULT_COMPONENTS" and self.default_components:
                 bottom += len(self.default_components) * (SIDEBAR_ITEM_HEIGHT - 15)
         return bottom
-    
+        
     def draw(self, surface):
         # Draw component card background
         bg_color = SIDEBAR_ITEM_HOVER if self.is_hovered else SIDEBAR_ITEM_BG
@@ -1142,7 +1202,7 @@ class Sidebar(ConfigChangeObserver):
                 if component.type == "SAVED_INSTANCES":
                     component.refresh_instances()
                     break
-    
+        
     def initialize_components(self):
         """Initialize sidebar with only Default and Saved sections"""
         y = SIDEBAR_TITLE_HEIGHT
@@ -1153,7 +1213,7 @@ class Sidebar(ConfigChangeObserver):
         ]
         # Start with Default section expanded
         self.components[0].is_expanded = True
-
+            
     def handle_event(self, event):
         """Handle events for the sidebar and its components"""
         for component in self.components:
@@ -1213,7 +1273,7 @@ def main():
         menu_selection = menu()
         if menu_selection == "exit":
             break
-        elif menu_selection == "configure":
+        elif menu_selection == "configuration":  # Changed from "configure"
             # Show configuration screen
             config_screen = ConfigurationScreen(config_manager)
             running = True
@@ -1233,7 +1293,7 @@ def main():
                 config_screen.draw(screen)
                 pygame.display.flip()
                 clock.tick(FPS)
-        elif menu_selection == "start":
+        elif menu_selection == "simulation":  # Changed from "start"
             # Initialize simulation
             initialize_network()
             
@@ -1366,4 +1426,4 @@ def main():
     sys.exit()
 
 if __name__ == "__main__":
-    main()
+    main() 

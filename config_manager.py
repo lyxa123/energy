@@ -10,14 +10,19 @@ GREEN = (0, 200, 0)
 RED = (200, 0, 0)
 BLUE = (0, 0, 255)
 GREY = (200, 200, 200)
-CONFIG_BG = (40, 40, 40)
-CONFIG_ITEM_BG = (60, 60, 60)
-CONFIG_ITEM_HOVER = (75, 75, 75)
-CONFIG_HIGHLIGHT = (0, 200, 0)
+CONFIG_BG = (93, 194, 237)  # Sky blue background
+CONFIG_ITEM_BG = (60, 60, 60)  # Lighter gray for parameters
+CONFIG_ITEM_HOVER = (80, 80, 80)  # Hover state
+CONFIG_HIGHLIGHT = (0, 200, 0)  # Keep green highlight
+PANEL_BG = (30, 30, 30)  # Dark panel background
+COMPONENT_BG = (40, 40, 40)  # Darker gray for components
+COMPONENT_HOVER = (55, 55, 55)  # Component hover state
+VALUE_COLOR = (220, 220, 220)  # Lighter color for values
+UNIT_COLOR = (160, 160, 160)  # Subtle color for units
 
 # Screen settings
-SCREEN_WIDTH = 1050
-SCREEN_HEIGHT = 750
+SCREEN_WIDTH = 1600  # Changed from 1050 to match pyPSA_db.py
+SCREEN_HEIGHT = 900  # Changed from 750 to match pyPSA_db.py
 CONFIG_ITEM_HEIGHT = 60
 CONFIG_ITEM_PADDING = 15
 CONFIG_SECTION_MARGIN = 40
@@ -282,173 +287,274 @@ class ConfigurationScreen:
         self.header_font = pygame.font.SysFont("Arial", 28)
         self.item_font = pygame.font.SysFont("Arial", 20)
         
+        # Calculate positions for title and tabs
+        title_y = 20  # Top margin
+        title_height = 40  # Height for title area
+        tabs_y = title_y + title_height + 20  # Space between title and tabs
+        tab_width = 150  # Width for each tab
+        tab_height = 40  # Height for tabs
+        left_margin = 20  # Left margin for all elements
+        
         # Tab buttons
-        tab_width = 150  # Reduced width
         self.parameters_tab = pygame.Rect(
-            20,  # Left margin
-            20,  # Top margin
+            left_margin,  # Left align with title
+            tabs_y,
             tab_width,
-            40   # Height
+            tab_height
         )
         
         self.instances_tab = pygame.Rect(
-            self.parameters_tab.right + 10,  # Next to Parameters tab
-            20,  # Same top margin as Parameters tab
+            self.parameters_tab.right + 10,  # 10px spacing between tabs
+            tabs_y,
             tab_width,
-            40
+            tab_height
         )
         
-        # Action buttons
+        # Action buttons - align with tabs
         self.save_as_button = pygame.Rect(
-            SCREEN_WIDTH - 400,  # Further left to avoid overlap
-            20,                  # Top margin
-            150,                 # Slightly smaller width
-            BUTTON_HEIGHT
+            SCREEN_WIDTH - 200 - 10,  # Right margin
+            tabs_y,  # Align with tabs
+            150,
+            tab_height
         )
         
         self.reset_all_button = pygame.Rect(
-            SCREEN_WIDTH - 200,  # Position on right side
-            20,                  # Top margin
-            150,                 # Slightly smaller width
-            BUTTON_HEIGHT
+            SCREEN_WIDTH - 350 - 20,  # Left of save button
+            tabs_y,  # Align with tabs
+            150,
+            tab_height
         )
         
-        # Instance action buttons
-        self.delete_instance_button = pygame.Rect(
-            SCREEN_WIDTH - 200,  # Right side
-            80,                  # Below top buttons
-            150,                 # Match other button widths
-            BUTTON_HEIGHT
-        )
-        
-        # Main menu button
+        # Main menu button - move to very bottom of screen
         self.main_menu_button = pygame.Rect(
-            20,  # Left side
-            SCREEN_HEIGHT - 60,  # Bottom margin
-            150,  # Match other button widths
+            left_margin,
+            SCREEN_HEIGHT - 50,  # Changed from 120 to 50 (moved down 70px to bottom)
+            150,
             BUTTON_HEIGHT
         )
 
     def draw(self, surface):
         """Draw the configuration screen"""
-        # Draw background
+        # First fill with solid color to prevent background bleed-through
         surface.fill(CONFIG_BG)
         
-        # Draw title
+        # Try to load and draw background image
+        try:
+            background_image = pygame.image.load("assets/config_background.png")
+            # Scale to fit screen exactly
+            background_image = pygame.transform.scale(background_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
+            surface.blit(background_image, (0, 0))
+        except (pygame.error, FileNotFoundError):
+            # Keep the solid color background if image not found
+            pass
+        
+        # Draw title with shadow for better visibility over background
+        title_shadow = self.title_font.render("Configuration", True, BLACK)
+        surface.blit(title_shadow, (22, 22))  # Shadow offset
         title_surface = self.title_font.render("Configuration", True, WHITE)
-        title_x = (SCREEN_WIDTH - title_surface.get_width()) // 2
-        surface.blit(title_surface, (title_x, 20))
+        surface.blit(title_surface, (20, 20))  # Main title
+        
+        # Create semi-transparent content panel for better readability
+        content_panel_rect = pygame.Rect(10, 60, SCREEN_WIDTH - 20, SCREEN_HEIGHT - 180)
+        panel_surface = pygame.Surface((content_panel_rect.width, content_panel_rect.height))
+        panel_surface.set_alpha(180)  # Semi-transparent (70% opacity)
+        panel_surface.fill(PANEL_BG)  # Dark background
+        surface.blit(panel_surface, content_panel_rect.topleft)
         
         # Draw tabs
         for tab, rect, text in [
             ("Parameters", self.parameters_tab, "Parameters"),
             ("Instances", self.instances_tab, "Instances")
         ]:
-            color = CONFIG_HIGHLIGHT if self.active_tab == tab else GREY
-            pygame.draw.rect(surface, color, rect, border_radius=5)
+            color = CONFIG_HIGHLIGHT if self.active_tab == tab else CONFIG_ITEM_BG
+            pygame.draw.rect(surface, color, rect, border_radius=8)  # More rounded corners
+            # Add white border like main menu
+            pygame.draw.rect(surface, WHITE, rect, width=2, border_radius=8)
             text_surface = self.header_font.render(text, True, WHITE)
             text_rect = text_surface.get_rect(center=rect.center)
             surface.blit(text_surface, text_rect)
         
+        # Draw action buttons - only show on Parameters tab
         if self.active_tab == "Parameters":
-            # Draw component list
-            y = 100
-            for component_type in DEFAULT_CONFIGS:
-                item_rect = pygame.Rect(20, y, 300, CONFIG_ITEM_HEIGHT)
-                color = CONFIG_HIGHLIGHT if component_type == self.selected_component else CONFIG_ITEM_BG
-                pygame.draw.rect(surface, color, item_rect, border_radius=5)
-                
-                text_surface = self.item_font.render(component_type.replace("_", " "), True, WHITE)
-                surface.blit(text_surface, (30, y + (CONFIG_ITEM_HEIGHT - text_surface.get_height()) // 2))
-                
-                y += CONFIG_ITEM_HEIGHT + CONFIG_ITEM_PADDING
-            
-            # Draw parameter list if component selected
-            if self.selected_component:
-                y = 100
-                x = 340  # Start parameters list to the right of components
-                for param_name, param_data in DEFAULT_CONFIGS[self.selected_component].items():
-                    item_rect = pygame.Rect(x, y, 400, CONFIG_ITEM_HEIGHT)
-                    color = CONFIG_HIGHLIGHT if param_name == self.selected_parameter else CONFIG_ITEM_BG
-                    pygame.draw.rect(surface, color, item_rect, border_radius=5)
-                    
-                    # Parameter name
-                    name_surface = self.item_font.render(param_name.replace("_", " "), True, WHITE)
-                    surface.blit(name_surface, (x + 10, y + 10))
-                    
-                    # Parameter value
-                    if param_name == self.selected_parameter and self.editing_value is not None:
-                        # Show editing value with cursor
-                        value_text = self.editing_value + "_"
-                    else:
-                        current_value = self.config_manager.current_configs[self.selected_component][param_name]
-                        value_text = f"{current_value:.2f} {param_data['units']}"
-                    
-                    value_surface = self.item_font.render(value_text, True, GREY)
-                    surface.blit(value_surface, (x + 10, y + CONFIG_ITEM_HEIGHT - 30))
-                    
-                    # Show min/max if parameter selected
-                    if param_name == self.selected_parameter:
-                        range_text = f"Range: {param_data['min']:.1f} - {param_data['max']:.1f} {param_data['units']}"
-                        range_surface = self.item_font.render(range_text, True, GREY)
-                        surface.blit(range_surface, (x + 200, y + CONFIG_ITEM_HEIGHT - 30))
-                    
-                    y += CONFIG_ITEM_HEIGHT + CONFIG_ITEM_PADDING
-            
-            # Draw Save As and Reset All buttons
-            pygame.draw.rect(surface, CONFIG_ITEM_BG, self.save_as_button, border_radius=5)
+            pygame.draw.rect(surface, CONFIG_ITEM_BG, self.save_as_button, border_radius=8)  # More rounded corners
+            # Add white border like main menu
+            pygame.draw.rect(surface, WHITE, self.save_as_button, width=2, border_radius=8)
             save_text = self.item_font.render("Save As...", True, WHITE)
             save_rect = save_text.get_rect(center=self.save_as_button.center)
             surface.blit(save_text, save_rect)
             
-            pygame.draw.rect(surface, CONFIG_ITEM_BG, self.reset_all_button, border_radius=5)
+            pygame.draw.rect(surface, CONFIG_ITEM_BG, self.reset_all_button, border_radius=8)  # More rounded corners
+            # Add white border like main menu
+            pygame.draw.rect(surface, WHITE, self.reset_all_button, width=2, border_radius=8)
             reset_text = self.item_font.render("Reset All", True, WHITE)
             reset_rect = reset_text.get_rect(center=self.reset_all_button.center)
             surface.blit(reset_text, reset_rect)
         
+        # Draw content based on active tab
+        content_start_y = self.parameters_tab.bottom + 20  # Start content below tabs
+        
+        if self.active_tab == "Parameters":
+            # Draw component list with side-by-side parameters
+            y = content_start_y
+            for component_type in DEFAULT_CONFIGS:
+                # Component section - compact width on the left
+                component_width = 250
+                item_height = CONFIG_ITEM_HEIGHT
+                
+                # Component background - only for the component name area
+                component_rect = pygame.Rect(20, y, component_width, item_height)
+                color = CONFIG_HIGHLIGHT if component_type == self.selected_component else COMPONENT_BG
+                pygame.draw.rect(surface, color, component_rect, border_radius=8)  # More rounded corners
+                
+                # Component name with better styling
+                name_surface = self.item_font.render(component_type.replace("_", " "), True, WHITE)
+                surface.blit(name_surface, (30, y + (item_height - name_surface.get_height()) // 2))
+                
+                # Draw parameters side by side to the right of component (always show them)
+                param_x = component_width + 30  # Start parameters after component with small gap
+                param_width = 200  # Fixed width for each parameter
+                
+                for param_name, param_data in DEFAULT_CONFIGS[component_type].items():
+                    param_rect = pygame.Rect(param_x, y, param_width, item_height)
+                    param_color = CONFIG_HIGHLIGHT if (component_type == self.selected_component and param_name == self.selected_parameter) else CONFIG_ITEM_BG
+                    pygame.draw.rect(surface, param_color, param_rect, border_radius=8)  # More rounded corners
+                    
+                    # Parameter name and value with improved typography
+                    if component_type == self.selected_component and param_name == self.selected_parameter and self.editing_value is not None:
+                        value_text = self.editing_value + "_"  # Show cursor
+                        value_color = WHITE
+                    else:
+                        current_value = self.config_manager.current_configs[component_type][param_name]
+                        value_text = f"{current_value:.2f}"
+                        units_text = param_data['units']
+                        value_color = VALUE_COLOR
+                    
+                    # Draw parameter name (smaller, subtle)
+                    param_name_surface = self.item_font.render(param_name.replace("_", " "), True, WHITE)
+                    surface.blit(param_name_surface, (param_x + 10, y + 8))
+                    
+                    # Draw parameter value and units with better styling
+                    if component_type == self.selected_component and param_name == self.selected_parameter and self.editing_value is not None:
+                        # Editing mode - show cursor
+                        value_surface = self.item_font.render(value_text, True, WHITE)
+                        surface.blit(value_surface, (param_x + 10, y + item_height - 25))
+                    else:
+                        # Normal mode - show value and units separately
+                        value_surface = self.item_font.render(value_text, True, VALUE_COLOR)
+                        units_surface = self.item_font.render(units_text, True, UNIT_COLOR)
+                        
+                        # Position value and units
+                        value_width = value_surface.get_width()
+                        surface.blit(value_surface, (param_x + 10, y + item_height - 25))
+                        surface.blit(units_surface, (param_x + 15 + value_width, y + item_height - 25))
+                    
+                    param_x += param_width + 10  # Move to next parameter position
+                
+                y += item_height + CONFIG_ITEM_PADDING
+        
         else:  # Instances tab
-            # Draw saved instances list
-            y = 100
-            instances = self.config_manager.get_saved_instances()
+            # Draw saved instances list in table format
+            y = content_start_y
+            instances = self.config_manager.get_saved_instances()  # Add this missing line
+            
+            # Table headers - make table wider
+            header_height = 30
+            table_width = SCREEN_WIDTH - 20  # Use almost full screen width
+            header_rect = pygame.Rect(10, y, table_width, header_height)
+            pygame.draw.rect(surface, CONFIG_ITEM_HOVER, header_rect, border_radius=5)
+            
+            # Column widths - made much wider to prevent overlap
+            name_col_width = 140
+            type_col_width = 280  # Much wider for full type names
+            desc_col_width = 180  # Increased for descriptions
+            params_col_width = 480  # Much wider for parameter strings
+            actions_col_width = 100
+            
+            # Draw column headers
+            headers = [
+                ("Name", 20, name_col_width),
+                ("Type", 20 + name_col_width, type_col_width),
+                ("Description", 20 + name_col_width + type_col_width, desc_col_width),
+                ("Parameters", 20 + name_col_width + type_col_width + desc_col_width, params_col_width),
+                ("Actions", 20 + name_col_width + type_col_width + desc_col_width + params_col_width, actions_col_width)
+            ]
+            
+            for header_text, x_pos, col_width in headers:
+                header_surface = self.item_font.render(header_text, True, WHITE)
+                surface.blit(header_surface, (x_pos, y + 8))
+                
+                # Draw column separator lines
+                if x_pos > 20:  # Don't draw line before first column
+                    pygame.draw.line(surface, GREY, (x_pos - 5, y), (x_pos - 5, y + header_height), 1)
+            
+            y += header_height + 5
+            
             if instances:
                 for instance in instances:
-                    # Create instance rectangle that's slightly smaller to accommodate delete button
-                    item_rect = pygame.Rect(20, y, SCREEN_WIDTH - 200, CONFIG_ITEM_HEIGHT)
-                    color = CONFIG_HIGHLIGHT if instance == self.selected_instance else CONFIG_ITEM_BG
-                    pygame.draw.rect(surface, color, item_rect, border_radius=5)
+                    # Row background - use wider table
+                    row_rect = pygame.Rect(10, y, table_width, CONFIG_ITEM_HEIGHT)
+                    color = CONFIG_HIGHLIGHT if instance == self.selected_instance else COMPONENT_BG
+                    pygame.draw.rect(surface, color, row_rect, border_radius=5)
                     
                     # Instance name
-                    name_surface = self.item_font.render(instance[1], True, WHITE)  # name column
-                    surface.blit(name_surface, (30, y + 10))
+                    name_text = instance[1][:16] + "..." if len(instance[1]) > 16 else instance[1]
+                    name_surface = self.item_font.render(name_text, True, WHITE)
+                    surface.blit(name_surface, (20, y + (CONFIG_ITEM_HEIGHT - name_surface.get_height()) // 2))
                     
-                    # Instance type and description
-                    type_text = instance[3].replace("_", " ")  # component_type column
-                    if instance[2]:  # description column
-                        type_text += f" - {instance[2]}"
+                    # Component type - no truncation now
+                    type_text = instance[3].replace("_", " ")
                     type_surface = self.item_font.render(type_text, True, GREY)
-                    surface.blit(type_surface, (30, y + CONFIG_ITEM_HEIGHT - 30))
+                    surface.blit(type_surface, (20 + name_col_width, y + (CONFIG_ITEM_HEIGHT - type_surface.get_height()) // 2))
                     
-                    # Draw Delete button if this instance is selected
-                    if instance == self.selected_instance:
-                        delete_button_rect = pygame.Rect(
-                            SCREEN_WIDTH - 180,  # Position to the right of instance
-                            y + (CONFIG_ITEM_HEIGHT - BUTTON_HEIGHT) // 2,  # Center vertically
-                            150,  # Width
-                            BUTTON_HEIGHT  # Height
-                        )
-                        pygame.draw.rect(surface, CONFIG_ITEM_BG, delete_button_rect, border_radius=5)
-                        delete_text = self.item_font.render("Delete", True, WHITE)
-                        delete_rect = delete_text.get_rect(center=delete_button_rect.center)
-                        surface.blit(delete_text, delete_rect)
+                    # Description
+                    desc_text = instance[2] if instance[2] else "No description"
+                    desc_text = desc_text[:22] + "..." if len(desc_text) > 22 else desc_text
+                    desc_surface = self.item_font.render(desc_text, True, GREY)
+                    surface.blit(desc_surface, (20 + name_col_width + type_col_width, y + (CONFIG_ITEM_HEIGHT - desc_surface.get_height()) // 2))
                     
-                    y += CONFIG_ITEM_HEIGHT + CONFIG_ITEM_PADDING
+                    # Parameters - show more parameters with wider column
+                    try:
+                        params = json.loads(instance[4])  # parameters column
+                        param_text = ""
+                        for key, value in params.items():  # Show all parameters
+                            param_text += f"{key}: {value:.1f} "
+                        param_text = param_text[:55] + "..." if len(param_text) > 55 else param_text
+                    except:
+                        param_text = "Invalid data"
+                    
+                    params_surface = self.item_font.render(param_text, True, GREY)
+                    surface.blit(params_surface, (20 + name_col_width + type_col_width + desc_col_width, y + (CONFIG_ITEM_HEIGHT - params_surface.get_height()) // 2))
+                    
+                    # Actions (Delete button)
+                    delete_button_rect = pygame.Rect(
+                        20 + name_col_width + type_col_width + desc_col_width + params_col_width + 10,
+                        y + (CONFIG_ITEM_HEIGHT - 25) // 2,
+                        80,
+                        25
+                    )
+                    button_color = RED if instance == self.selected_instance else CONFIG_ITEM_BG
+                    pygame.draw.rect(surface, button_color, delete_button_rect, border_radius=3)
+                    delete_text = self.item_font.render("Delete", True, WHITE)
+                    delete_rect = delete_text.get_rect(center=delete_button_rect.center)
+                    surface.blit(delete_text, delete_rect)
+                    
+                    # Draw column separator lines for data rows
+                    for header_text, x_pos, col_width in headers[1:]:  # Skip first column
+                        pygame.draw.line(surface, GREY, (x_pos - 5, y), (x_pos - 5, y + CONFIG_ITEM_HEIGHT), 1)
+                    
+                    y += CONFIG_ITEM_HEIGHT + 5
             else:
+                # No instances message
+                no_instances_rect = pygame.Rect(10, y, table_width, 60)
+                pygame.draw.rect(surface, CONFIG_ITEM_BG, no_instances_rect, border_radius=5)
                 text_surface = self.item_font.render("No saved instances", True, GREY)
-                text_rect = text_surface.get_rect(center=(SCREEN_WIDTH // 2, 150))
+                text_rect = text_surface.get_rect(center=no_instances_rect.center)
                 surface.blit(text_surface, text_rect)
         
         # Draw Main Menu button
-        pygame.draw.rect(surface, CONFIG_ITEM_BG, self.main_menu_button, border_radius=5)
+        pygame.draw.rect(surface, CONFIG_ITEM_BG, self.main_menu_button, border_radius=8)  # More rounded corners
+        # Add white border like main menu
+        pygame.draw.rect(surface, WHITE, self.main_menu_button, width=2, border_radius=8)
         menu_text = self.item_font.render("Main Menu", True, WHITE)
         menu_rect = menu_text.get_rect(center=self.main_menu_button.center)
         surface.blit(menu_text, menu_rect)
@@ -457,12 +563,13 @@ class ConfigurationScreen:
         if self.save_dialog:
             self.save_dialog.draw(surface)
         
-        # Draw message if active
+        # Draw message if active (includes helpful parameter instructions)
         if self.message and self.message_timer > 0:
             msg_surface = self.item_font.render(self.message, True, WHITE)
             msg_rect = msg_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 40))
             bg_rect = msg_rect.inflate(20, 10)
-            pygame.draw.rect(surface, CONFIG_ITEM_BG, bg_rect, border_radius=5)
+            pygame.draw.rect(surface, PANEL_BG, bg_rect, border_radius=8)
+            pygame.draw.rect(surface, WHITE, bg_rect, width=1, border_radius=8)
             surface.blit(msg_surface, msg_rect)
 
     def handle_event(self, event):
@@ -472,14 +579,14 @@ class ConfigurationScreen:
             result = self.save_dialog.handle_event(event)
             if result:
                 name, description = result
-                if self.selected_component:  # Changed condition to only require selected_component
+                if self.selected_component:
                     success, message = self.config_manager.save_instance(
                         name,
                         self.selected_component,
                         description
                     )
                     self.message = message
-                    self.message_timer = 120  # Show message for 2 seconds
+                    self.message_timer = 120
                 self.save_dialog = None
             return
         
@@ -496,39 +603,15 @@ class ConfigurationScreen:
                         self.selected_component = None
                         self.selected_parameter = None
                         self.selected_instance = None
-                        self.editing_value = None  # Reset editing state
+                        self.editing_value = None
                         return
                 
                 # Check main menu button
                 if self.main_menu_button.collidepoint(event.pos):
                     return "menu"
                 
+                # Check Save As and Reset All buttons - only on Parameters tab
                 if self.active_tab == "Parameters":
-                    # Check component list clicks
-                    y = 100
-                    for component_type in DEFAULT_CONFIGS:
-                        item_rect = pygame.Rect(20, y, 300, CONFIG_ITEM_HEIGHT)
-                        if item_rect.collidepoint(event.pos):
-                            self.selected_component = component_type
-                            self.selected_parameter = None
-                            self.editing_value = None  # Reset editing state
-                            return
-                        y += CONFIG_ITEM_HEIGHT + CONFIG_ITEM_PADDING
-                    
-                    # Check parameter list clicks if component selected
-                    if self.selected_component:
-                        y = 100
-                        x = 340
-                        for param_name in DEFAULT_CONFIGS[self.selected_component]:
-                            item_rect = pygame.Rect(x, y, 400, CONFIG_ITEM_HEIGHT)
-                            if item_rect.collidepoint(event.pos):
-                                self.selected_parameter = param_name
-                                # Start editing when clicking parameter
-                                current_value = self.config_manager.current_configs[self.selected_component][param_name]
-                                self.editing_value = str(current_value)
-                                return
-                            y += CONFIG_ITEM_HEIGHT + CONFIG_ITEM_PADDING
-                    
                     # Check Save As button
                     if self.save_as_button.collidepoint(event.pos):
                         if self.selected_component:
@@ -546,35 +629,82 @@ class ConfigurationScreen:
                             self.message_timer = 120
                         return
                 
+                content_start_y = self.parameters_tab.bottom + 20
+                
+                if self.active_tab == "Parameters":
+                    # Check component list clicks
+                    y = content_start_y
+                    for component_type in DEFAULT_CONFIGS:
+                        component_width = 250
+                        item_height = CONFIG_ITEM_HEIGHT
+                        
+                        # Check component name click
+                        component_rect = pygame.Rect(20, y, component_width, item_height)
+                        if component_rect.collidepoint(event.pos):
+                            self.selected_component = component_type
+                            self.selected_parameter = None
+                            self.editing_value = None
+                            return
+                        
+                        # Check parameter clicks
+                        param_x = component_width + 30
+                        param_width = 200
+                        
+                        for param_name in DEFAULT_CONFIGS[component_type]:
+                            param_rect = pygame.Rect(param_x, y, param_width, item_height)
+                            if param_rect.collidepoint(event.pos):
+                                self.selected_component = component_type
+                                self.selected_parameter = param_name
+                                current_value = self.config_manager.current_configs[component_type][param_name]
+                                self.editing_value = str(current_value)
+                                
+                                # Show helpful message about parameter editing
+                                param_data = DEFAULT_CONFIGS[component_type][param_name]
+                                self.message = f"Type new value for {param_name.replace('_', ' ')} (Range: {param_data['min']:.1f} - {param_data['max']:.1f} {param_data['units']}). Press Enter to save."
+                                self.message_timer = 300  # Show for 5 seconds
+                                return
+                            param_x += param_width + 10
+                        
+                        y += item_height + CONFIG_ITEM_PADDING
+                
                 else:  # Instances tab
-                    # Check instance list clicks
-                    y = 100
+                    # Check instance list clicks in table format
+                    header_height = 30
+                    y = content_start_y + header_height + 5  # Start after header
                     instances = self.config_manager.get_saved_instances()
+                    
+                    # Column widths (same as in draw method)
+                    name_col_width = 140
+                    type_col_width = 280  # Much wider for full type names
+                    desc_col_width = 180  # Increased for descriptions
+                    params_col_width = 480  # Much wider for parameter strings
+                    actions_col_width = 100
+                    
                     if instances:
                         for instance in instances:
-                            # Instance rectangle
-                            item_rect = pygame.Rect(20, y, SCREEN_WIDTH - 200, CONFIG_ITEM_HEIGHT)
-                            if item_rect.collidepoint(event.pos):
+                            # Check delete button click first (for any instance, not just selected)
+                            delete_button_rect = pygame.Rect(
+                                20 + name_col_width + type_col_width + desc_col_width + params_col_width + 10,
+                                y + (CONFIG_ITEM_HEIGHT - 25) // 2,
+                                80,
+                                25
+                            )
+                            if delete_button_rect.collidepoint(event.pos):
+                                success, message = self.config_manager.delete_instance(instance[0])
+                                self.message = message
+                                self.message_timer = 120
+                                if success:
+                                    self.selected_instance = None
+                                return
+                            
+                            # Check row click (excluding delete button area)
+                            table_width = SCREEN_WIDTH - 20
+                            row_rect = pygame.Rect(10, y, table_width - actions_col_width, CONFIG_ITEM_HEIGHT)
+                            if row_rect.collidepoint(event.pos):
                                 self.selected_instance = instance
                                 return
                             
-                            # Delete button for selected instance
-                            if instance == self.selected_instance:
-                                delete_button_rect = pygame.Rect(
-                                    SCREEN_WIDTH - 180,
-                                    y + (CONFIG_ITEM_HEIGHT - BUTTON_HEIGHT) // 2,
-                                    150,
-                                    BUTTON_HEIGHT
-                                )
-                                if delete_button_rect.collidepoint(event.pos):
-                                    success, message = self.config_manager.delete_instance(instance[0])
-                                    self.message = message
-                                    self.message_timer = 120
-                                    if success:
-                                        self.selected_instance = None
-                                    return
-                            
-                            y += CONFIG_ITEM_HEIGHT + CONFIG_ITEM_PADDING
+                            y += CONFIG_ITEM_HEIGHT + 5
         
         # Handle key events for parameter editing
         elif event.type == pygame.KEYDOWN:
@@ -583,7 +713,6 @@ class ConfigurationScreen:
                 
                 if self.editing_value is not None:
                     if event.key == pygame.K_RETURN:
-                        # Try to save the edited value
                         try:
                             new_value = float(self.editing_value)
                             success, message = self.config_manager.save_config(
@@ -593,14 +722,14 @@ class ConfigurationScreen:
                             )
                             self.message = message
                             if success:
-                                self.editing_value = None  # Exit editing mode
+                                self.editing_value = None
                         except ValueError:
                             self.message = "Invalid number format"
                         self.message_timer = 120
                         return
                     
                     elif event.key == pygame.K_ESCAPE:
-                        self.editing_value = None  # Cancel editing
+                        self.editing_value = None
                         return
                     
                     elif event.key == pygame.K_BACKSPACE:
@@ -608,12 +737,10 @@ class ConfigurationScreen:
                         return
                     
                     elif event.unicode:
-                        # Allow only numbers and decimal point
                         if event.unicode.isnumeric() or (event.unicode == '.' and '.' not in self.editing_value):
                             self.editing_value += event.unicode
                         return
                 
-                # Handle up/down arrows and reset key when not editing
                 elif event.key == pygame.K_UP:
                     current_value = self.config_manager.current_configs[self.selected_component][self.selected_parameter]
                     value_range = param_data['max'] - param_data['min']
