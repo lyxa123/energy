@@ -68,9 +68,9 @@ COMPONENT_TYPES = {
 
 # Sidebar Settings from pyPSA_3D.py
 SIDEBAR_WIDTH = 250
-MAIN_AREA_WIDTH = 800
-SCREEN_WIDTH = MAIN_AREA_WIDTH + SIDEBAR_WIDTH  # Update screen width to include sidebar
-SCREEN_HEIGHT = 750
+MAIN_AREA_WIDTH = 1350  # Increased from 800
+SCREEN_WIDTH = MAIN_AREA_WIDTH + SIDEBAR_WIDTH  # Now 1600
+SCREEN_HEIGHT = 900     # Increased from 750
 FPS = 60
 SIDEBAR_ANIMATION_SPEED = 15
 SIDEBAR_SHADOW_WIDTH = 10
@@ -1366,4 +1366,4 @@ def main():
     sys.exit()
 
 if __name__ == "__main__":
-    main() 
+    main()

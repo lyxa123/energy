@@ -4,12 +4,16 @@ services:
   app:
     build: .
     image: lyxatang/energy-simulator:latest
+    container_name: energy-sim
+    ports:
+      - "6080:6080"  # noVNC browser port
+      - "5900:5900"  # VNC port
     volumes:
       - .:/app
-      - /tmp/.X11-unix:/tmp/.X11-unix  # X11 forwarding
     environment:
-      - DISPLAY=${DISPLAY}
+      - DISPLAY=:99
+      # - SDL_VIDEODRIVER=dummy # this makes it headless mode if not commented
+      - SDL_AUDIODRIVER=dummy
       - PYTHONUNBUFFERED=1
-    devices:
-      - /dev/dri:/dev/dri  # GPU access if available
-    command: xvfb-run python pyPSA_db.py 
+    stdin_open: true
+    tty: true
