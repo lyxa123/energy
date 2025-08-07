@@ -49,3 +49,112 @@ Curious about what's happening in the background? Here’s a simple breakdown:
 -   **x11vnc & noVNC:** These two tools work together like a webcam pointed at the virtual screen. `x11vnc` captures what the application is drawing, and `noVNC` streams it directly to your web browser, allowing you to see and interact with the simulation as if it were running natively on your machine.
 
 This setup might seem complex, but it's all automated through the Docker configuration and the provided scripts. You get a fully functional simulation environment with just a few simple commands!
+
+---
+
+## Additional Setup for Linux Users
+
+If you're using Linux and running into strange errors like `ContainerConfig` issues or permission denied messages, this section is for you! Docker Compose on Linux sometimes requires a little extra setup compared to macOS or Windows.
+
+### Step 0: Use Docker Compose v2
+
+Most Linux distributions come with an outdated version of Docker Compose (`v1.x`), which can cause compatibility issues with this project. You’ll want to upgrade to the newer Compose v2.
+
+1. First, check if you already have Docker Compose v2:
+
+   ```bash
+   docker compose version  # Note the space, not a dash!
+   ```
+
+   If this command fails or shows a version below `v2`, continue with the steps below.
+
+2. Install `curl` if it's not already available:
+
+   ```bash
+   sudo apt update
+   sudo apt install curl
+   ```
+
+3. Create the directory for Docker CLI plugins:
+
+   ```bash
+   mkdir -p ~/.docker/cli-plugins
+   ```
+
+4. Download the latest Docker Compose v2 binary:
+
+   ```bash
+   curl -SL https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose
+   ```
+
+5. Make the file executable:
+
+   ```bash
+   chmod +x ~/.docker/cli-plugins/docker-compose
+   ```
+
+6. Verify the installation:
+
+   ```bash
+   docker compose version
+   ```
+
+   **What to Expect:** You should see something like `Docker Compose version v2.27.0`. You’re good to go!
+
+>  **Important:** Always use `docker compose` with a space for this new version, not `docker-compose` with a dash.
+
+---
+
+### Step 1: Make Sure `start.sh` is Executable
+
+If you see this error in your terminal:
+
+```
+exec: "/app/start.sh": permission denied
+```
+
+It means the `start.sh` file doesn’t have execute permissions. Here's how to fix it:
+
+1. Run the following command in the project folder:
+
+   ```bash
+   chmod +x start.sh
+   ```
+
+2. Then rebuild the image:
+
+   ```bash
+   docker compose build
+   ```
+
+---
+
+### Step 2: Remove Old or Conflicting Containers
+
+If you encounter an error like:
+
+```
+The container name "..._energy-sim" is already in use
+```
+
+It just means Docker is trying to reuse a container that already exists. You can clean it up like this:
+
+1. Remove any old containers:
+
+   ```bash
+   docker container prune -f
+   ```
+
+2. Or remove a specific container:
+
+   ```bash
+   docker rm <container_id>
+   ```
+
+3. Now restart the simulator:
+
+   ```bash
+   docker compose up --build
+   ```
+
+---
