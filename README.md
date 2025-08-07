@@ -54,16 +54,14 @@ This setup might seem complex, but it's all automated through the Docker configu
 
 ## Additional Setup for Linux Users
 
-If you're using Linux and running into strange errors like `ContainerConfig` issues or permission denied messages, this section is for you! Docker Compose on Linux sometimes requires a little extra setup compared to macOS or Windows.
+If you're using Linux and running into strange errors like `ContainerConfig` issues or permission denied messages, this section is for you! Docker Compose on Linux sometimes requires a little extra setup compared to macOS or Windows. Most Linux distributions come with an outdated version of Docker Compose (`v1.x`), which can cause compatibility issues with this project. You’ll want to upgrade to the newer Compose v2.
 
-### Step 0: Use Docker Compose v2
-
-Most Linux distributions come with an outdated version of Docker Compose (`v1.x`), which can cause compatibility issues with this project. You’ll want to upgrade to the newer Compose v2.
+### Use Docker Compose v2
 
 1. First, check if you already have Docker Compose v2:
 
    ```bash
-   docker compose version  # Note the space, not a dash!
+   docker compose version
    ```
 
    If this command fails or shows a version below `v2`, continue with the steps below.
@@ -99,13 +97,13 @@ Most Linux distributions come with an outdated version of Docker Compose (`v1.x`
    docker compose version
    ```
 
-   **What to Expect:** You should see something like `Docker Compose version v2.27.0`. You’re good to go!
+   **What to Expect:** You should see something like `Docker Compose version v2.27.0`. 
 
->  **Important:** Always use `docker compose` with a space for this new version, not `docker-compose` with a dash.
+>  **Important:** Use `docker compose` with a space for this version, not `docker-compose` with a dash.
 
 ---
 
-### Step 1: Make Sure `start.sh` is Executable
+### Additional errors: Making Sure `start.sh` is Executable
 
 If you see this error in your terminal:
 
@@ -129,7 +127,7 @@ It means the `start.sh` file doesn’t have execute permissions. Here's how to f
 
 ---
 
-### Step 2: Remove Old or Conflicting Containers
+### Additional errors: Removing Old or Conflicting Containers
 
 If you encounter an error like:
 
@@ -145,13 +143,7 @@ It just means Docker is trying to reuse a container that already exists. You can
    docker container prune -f
    ```
 
-2. Or remove a specific container:
-
-   ```bash
-   docker rm <container_id>
-   ```
-
-3. Now restart the simulator:
+3. Restart the simulator:
 
    ```bash
    docker compose up --build
