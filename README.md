@@ -101,9 +101,15 @@ If you're using Linux and running into strange errors like `ContainerConfig` iss
 
 >  **Important:** Use `docker compose` with a space for this version, not `docker-compose` with a dash.
 
+7. Restart the simulator:
+
+   ```bash
+   docker compose up --build
+   ```
+
 ---
 
-### Additional errors: Making Sure `start.sh` is Executable
+### Additional Errors: Making Sure `start.sh` is Executable
 
 If you see this error in your terminal:
 
@@ -127,7 +133,7 @@ It means the `start.sh` file doesn’t have execute permissions. Here's how to f
 
 ---
 
-### Additional errors: Removing Old or Conflicting Containers
+### Additional Errors: Removing Old or Conflicting Containers
 
 If you encounter an error like:
 
@@ -137,16 +143,10 @@ The container name "..._energy-sim" is already in use
 
 It just means Docker is trying to reuse a container that already exists. You can clean it up like this:
 
-1. Remove any old containers:
+Remove any old containers:
 
    ```bash
    docker container prune -f
-   ```
-
-3. Restart the simulator:
-
-   ```bash
-   docker compose up --build
    ```
 
 ---
