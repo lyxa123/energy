@@ -45,9 +45,8 @@ ENV DISPLAY=:99
 # ENV SDL_AUDIODRIVER=dummy # Uncomment if you want to run in headless mode
 ENV PYTHONUNBUFFERED=1
 
-# Copy startup script and make it executable
-COPY start.sh .
-RUN chmod +x start.sh
+# Ensure startup script is executable (needed for volume mounts)
+RUN chmod +x /app/start.sh
 
 # Command to run the application
-CMD ["/app/start.sh"]
+CMD ["/bin/bash", "/app/start.sh"]

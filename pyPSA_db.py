@@ -7,24 +7,18 @@ import collections
 from datetime import datetime
 import sys
 import json # Added for loading saved instances
+import logging
+
+# Suppress PyPSA's verbose logging output
+logging.getLogger('pypsa').setLevel(logging.WARNING)
+logging.getLogger('pypsa.network').setLevel(logging.WARNING)
+logging.getLogger('pypsa.network.power_flow').setLevel(logging.WARNING)
+
+# Import shared constants FIRST
+from constants import *
 
 # Add imports at the top
 from config_manager import ConfigurationManager, ConfigurationScreen, ConfigChangeObserver
-
-# Colors
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-GREEN = (0, 200, 0)
-RED = (200, 0, 0)
-BLUE = (0, 0, 255)
-GREY = (200, 200, 200)
-YELLOW = (255, 255, 0)
-LOG_PANEL_BG = (30, 30, 30)
-LOG_TEXT_COLOR = (220, 220, 220)
-ENTITY_LABEL_COLOR = BLACK
-MENU_BG = (50, 50, 50)
-MENU_TEXT = (220, 220, 220)
-HELP_BG = (40, 40, 40)
 
 # Component Types
 COMPONENT_TYPES = {
@@ -67,10 +61,6 @@ COMPONENT_TYPES = {
 }
 
 # Sidebar Settings from pyPSA_3D.py
-SIDEBAR_WIDTH = 250
-MAIN_AREA_WIDTH = 1350  # Increased from 800
-SCREEN_WIDTH = MAIN_AREA_WIDTH + SIDEBAR_WIDTH  # Now 1600
-SCREEN_HEIGHT = 900     # Increased from 750
 FPS = 60
 SIDEBAR_ANIMATION_SPEED = 15
 SIDEBAR_SHADOW_WIDTH = 10
@@ -88,21 +78,6 @@ SIDEBAR_SHADOW_COLOR = (0, 0, 0)
 SIDEBAR_BUTTON_TEXT = "⚙"
 
 # --- PyGame Settings ---
-# Colors
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-GREEN = (0, 200, 0)
-RED = (200, 0, 0)
-BLUE = (0, 0, 255)
-GREY = (200, 200, 200)
-YELLOW = (255, 255, 0)
-LOG_PANEL_BG = (30, 30, 30)
-LOG_TEXT_COLOR = (220, 220, 220)
-ENTITY_LABEL_COLOR = BLACK
-MENU_BG = (50, 50, 50)
-MENU_TEXT = (220, 220, 220)
-HELP_BG = (40, 40, 40)
-
 # Menu Settings
 MENU_TITLE_SIZE = 48
 MENU_ITEM_SIZE = 36
@@ -216,6 +191,44 @@ def to_isometric(grid_x, grid_y):
     iso_y = (grid_x + grid_y) * TILE_HEIGHT
     return iso_x, iso_y
 
+def create_trapezoid_points(center_x, center_y, width, height):
+    """Create 3D trapezoid points based on user's specification.
+    Creates a 3D box effect with nearside (bottom) and farside (top) where farside is 80% width."""
+    
+    # Tommy's algorithm implementation
+    nearside_box_length = width
+    half_nearside_length = nearside_box_length / 2
+    box_height = half_nearside_length / 3
+    
+    # Use the calculated box_height instead of the passed height parameter
+    actual_height = box_height
+    
+    # Nearside (bottom edge - closer to user)
+    nearside_middle_point_x = center_x
+    nearside_middle_point_y = center_y + (actual_height // 2)  # Bottom of the shape
+    
+    nearside_left_x = nearside_middle_point_x - half_nearside_length
+    nearside_left_y = nearside_middle_point_y
+    nearside_right_x = nearside_middle_point_x + half_nearside_length
+    nearside_right_y = nearside_middle_point_y
+    
+    # Farside (top edge - further from user)
+    farside_middle_point_y = center_y - (actual_height // 2)  # Top of the shape
+    farside_left_x = nearside_middle_point_x - (half_nearside_length * 0.8)
+    farside_right_x = nearside_middle_point_x + (half_nearside_length * 0.8)
+    farside_left_y = farside_middle_point_y
+    farside_right_y = farside_middle_point_y
+    
+    # Create trapezoid points (clockwise from top-left)
+    points = [
+        (farside_left_x, farside_left_y),      # Top left (farside)
+        (farside_right_x, farside_right_y),    # Top right (farside)
+        (nearside_right_x, nearside_right_y),  # Bottom right (nearside)
+        (nearside_left_x, nearside_left_y)     # Bottom left (nearside)
+    ]
+    
+    return points
+
 class Button:
     def __init__(self, x, y, size, text, color):
         self.rect = pygame.Rect(x, y, size, size)
@@ -284,77 +297,55 @@ class Entity(pygame.sprite.Sprite):
     def redraw(self):
         self.image.fill((0, 0, 0, 0))  # Transparent background
         
-        # Calculate colors for different faces
-        top_color = self.base_color
-        right_color = darken_color(self.base_color, 0.8)  # Slightly darker
-        left_color = darken_color(self.base_color, 0.6)   # Darkest
-        
-        # Calculate points for isometric cube
+        # Calculate center points for 3D trapezoid box
         center_x = self.image.get_width() // 2
         center_y = self.image.get_height() // 2
         
-        # Use exact same dimensions as selection highlight
-        half_width = TILE_WIDTH // 2
-        half_height = TILE_HEIGHT
+        # Create main trapezoid face using user's algorithm
+        main_points = create_trapezoid_points(center_x, center_y, TILE_WIDTH, TILE_HEIGHT)
         
-        # Define cube points to match isometric grid
-        top_face = [
-            (center_x, center_y - half_height),  # Top
-            (center_x + half_width, center_y - half_height//2),  # Right
-            (center_x, center_y),  # Bottom
-            (center_x - half_width, center_y - half_height//2)   # Left
+        # Calculate colors for 3D effect
+        top_color = self.base_color  # Main face color
+        side_color = darken_color(self.base_color, 0.8)  # Darker side face
+        edge_color = darken_color(self.base_color, 0.5)  # Darkest edge color
+        
+        # Draw the main trapezoid face (front face)
+        pygame.draw.polygon(self.image, top_color, main_points)
+        
+        # Create 3D depth effect by drawing side faces
+        depth_offset = 10  # Pixels of 3D depth
+        
+        # Right side face (connecting right edges) - only offset upward
+        right_side_points = [
+            main_points[1],  # Top right of front face
+            (main_points[1][0], main_points[1][1] - depth_offset),  # Top right back (only up)
+            (main_points[2][0], main_points[2][1] - depth_offset),  # Bottom right back (only up)
+            main_points[2]   # Bottom right of front face
         ]
+        pygame.draw.polygon(self.image, side_color, right_side_points)
         
-        left_face = [
-            (center_x - half_width, center_y - half_height//2),  # Top
-            (center_x, center_y),  # Right
-            (center_x, center_y + half_height//2),  # Bottom
-            (center_x - half_width, center_y)   # Left
+        # Top side face (connecting top edges) - only offset upward
+        top_side_points = [
+            main_points[0],  # Top left of front face
+            main_points[1],  # Top right of front face
+            (main_points[1][0], main_points[1][1] - depth_offset),  # Top right back (only up)
+            (main_points[0][0], main_points[0][1] - depth_offset)   # Top left back (only up)
         ]
+        pygame.draw.polygon(self.image, side_color, top_side_points)
         
-        right_face = [
-            (center_x + half_width, center_y - half_height//2),  # Top
-            (center_x + half_width, center_y),  # Right
-            (center_x, center_y + half_height//2),  # Bottom
-            (center_x, center_y)  # Left
-        ]
-
-        # Draw faces
-        pygame.draw.polygon(self.image, top_color, top_face)
-        pygame.draw.polygon(self.image, left_color, left_face)
-        pygame.draw.polygon(self.image, right_color, right_face)
+        # Draw main face border for definition
+        pygame.draw.polygon(self.image, edge_color, main_points, 2)
         
-        # Draw edges
-        edge_color = darken_color(self.base_color, 0.4)
-        pygame.draw.lines(self.image, edge_color, True, top_face, 2)
-        pygame.draw.lines(self.image, edge_color, True, left_face, 2)
-        pygame.draw.lines(self.image, edge_color, True, right_face, 2)
+        # Draw 3D edges
+        pygame.draw.lines(self.image, edge_color, False, right_side_points, 2)
+        pygame.draw.lines(self.image, edge_color, False, top_side_points, 2)
         
-        # Draw dashed lines for hidden edges
-        def draw_dashed_line(surface, color, start_pos, end_pos, width=1, dash_length=4):
-            dx = end_pos[0] - start_pos[0]
-            dy = end_pos[1] - start_pos[1]
-            distance = math.sqrt(dx * dx + dy * dy)
-            dashes = int(distance / (2 * dash_length))
-            for i in range(dashes):
-                start = (
-                    start_pos[0] + (dx * i * 2 * dash_length) / distance,
-                    start_pos[1] + (dy * i * 2 * dash_length) / distance
-                )
-                end = (
-                    start_pos[0] + (dx * (i * 2 + 1) * dash_length) / distance,
-                    start_pos[1] + (dy * (i * 2 + 1) * dash_length) / distance
-                )
-                pygame.draw.line(surface, color, start, end, width)
-
-        # Draw dashed lines for hidden edges
-        hidden_edges = [
-            (left_face[3], right_face[1]),  # Back bottom edge
-            (left_face[3], left_face[2]),   # Back left edge
-            (right_face[1], right_face[2])  # Back right edge
-        ]
-        for start, end in hidden_edges:
-            draw_dashed_line(self.image, edge_color, start, end, 1)
+        # Add inner highlight for depth
+        inner_width = int(TILE_WIDTH * 0.8)
+        inner_height = int(TILE_HEIGHT * 0.8)
+        inner_points = create_trapezoid_points(center_x, center_y, inner_width, inner_height)
+        highlight_color = lighten_color(self.base_color, 1.15)
+        pygame.draw.polygon(self.image, highlight_color, inner_points, 1)
 
         # Add label
         font = pygame.font.SysFont("Arial", 14, bold=True)
@@ -368,13 +359,10 @@ class Entity(pygame.sprite.Sprite):
         screen_x = iso_x + MAIN_AREA_WIDTH // 2 - self.rect.width//2
         screen_y = iso_y + SCREEN_HEIGHT // 2 - self.rect.height//2
         
-        # Draw shadow
-        shadow_points = [
-            (self.rect.width//2, self.rect.height//2 + TILE_HEIGHT//2),
-            (self.rect.width//2 + TILE_WIDTH//2, self.rect.height//2),
-            (self.rect.width//2, self.rect.height//2 - TILE_HEIGHT//2),
-            (self.rect.width//2 - TILE_WIDTH//2, self.rect.height//2)
-        ]
+        # Draw shadow using trapezoid shape
+        shadow_center_x = self.rect.width//2
+        shadow_center_y = self.rect.height//2
+        shadow_points = create_trapezoid_points(shadow_center_x, shadow_center_y, TILE_WIDTH, TILE_HEIGHT)
         
         # Create a surface for the shadow
         shadow_surface = pygame.Surface((self.rect.width, self.rect.height), pygame.SRCALPHA)
@@ -908,17 +896,12 @@ class SelectionHighlight:
         # Create surface for the highlight
         highlight_surface = pygame.Surface((TILE_WIDTH * 2, TILE_WIDTH * 2), pygame.SRCALPHA)
         
-        # Calculate center points for the diamond shape
+        # Calculate center points for the trapezoid shape
         center_x = highlight_surface.get_width() // 2
         center_y = highlight_surface.get_height() // 2
         
-        # Create diamond shape using the same dimensions as Entity class
-        points = [
-            (center_x, center_y - TILE_HEIGHT//2),  # Top
-            (center_x + TILE_WIDTH//2, center_y),   # Right
-            (center_x, center_y + TILE_HEIGHT//2),  # Bottom
-            (center_x - TILE_WIDTH//2, center_y)    # Left
-        ]
+        # Create trapezoid shape for selection highlight
+        points = create_trapezoid_points(center_x, center_y, TILE_WIDTH, TILE_HEIGHT)
         
         # Draw semi-transparent highlight
         pygame.draw.polygon(highlight_surface, self.color, points)
@@ -975,20 +958,15 @@ class SidebarComponent:
         bg_color = SIDEBAR_ITEM_HOVER if self.is_hovered else SIDEBAR_ITEM_BG
         pygame.draw.rect(surface, bg_color, self.rect, border_radius=5)
         
-        # Draw component preview (diamond shape)
+        # Draw component preview (trapezoid shape)
         preview_size = min(self.rect.height - 20, CUBE_SIZE // 2)  # Make preview smaller
         center_x = self.rect.x + 20 + preview_size
         center_y = self.rect.centery
         
-        # Draw diamond shape
-        points = [
-            (center_x, center_y - preview_size//2),  # Top
-            (center_x + preview_size//2, center_y),  # Right
-            (center_x, center_y + preview_size//2),  # Bottom
-            (center_x - preview_size//2, center_y)   # Left
-        ]
+        # Draw trapezoid shape instead of diamond
+        points = create_trapezoid_points(center_x, center_y, preview_size, preview_size)
         
-        # Draw component diamond
+        # Draw component trapezoid
         pygame.draw.polygon(surface, self.config["icon_color"], points)
         pygame.draw.polygon(surface, darken_color(self.config["icon_color"], 0.7), points, 2)
         
@@ -998,10 +976,28 @@ class SidebarComponent:
         label_rect = label_surface.get_rect(center=(center_x, center_y))
         surface.blit(label_surface, label_rect)
         
-        # Draw description
+        # Draw description with text truncation to fit button width
         desc_font = pygame.font.SysFont("Arial", 16)
-        desc_surface = desc_font.render(self.config["description"], True, SIDEBAR_TEXT)
+        description_text = self.config["description"]
         desc_x = center_x + preview_size + 10
+        
+        # Calculate available width for text
+        available_width = self.rect.width - (desc_x - self.rect.x) - 10  # 10px right margin
+        
+        # Truncate text if it's too long
+        if desc_font.size(description_text)[0] > available_width:
+            # Binary search for the maximum characters that fit
+            left, right = 0, len(description_text)
+            while left < right:
+                mid = (left + right + 1) // 2
+                test_text = description_text[:mid] + "..." if mid < len(description_text) else description_text
+                if desc_font.size(test_text)[0] <= available_width:
+                    left = mid
+                else:
+                    right = mid - 1
+            description_text = description_text[:left] + "..." if left < len(description_text) else description_text
+        
+        desc_surface = desc_font.render(description_text, True, SIDEBAR_TEXT)
         desc_y = self.rect.centery - desc_surface.get_height() // 2
         surface.blit(desc_surface, (desc_x, desc_y))
 
@@ -1048,17 +1044,12 @@ class SidebarComponent:
                     bg_color = SIDEBAR_ITEM_HOVER if self.hovered_instance == (comp_type, comp_config) else SIDEBAR_ITEM_BG
                     pygame.draw.rect(surface, bg_color, instance_rect, border_radius=5)
                     
-                    # Draw component preview
+                    # Draw component preview (trapezoid)
                     preview_size = min(instance_rect.height - 10, CUBE_SIZE // 2)
                     center_x = instance_rect.x + 20 + preview_size
                     center_y = instance_rect.centery
                     
-                    points = [
-                        (center_x, center_y - preview_size//2),
-                        (center_x + preview_size//2, center_y),
-                        (center_x, center_y + preview_size//2),
-                        (center_x - preview_size//2, center_y)
-                    ]
+                    points = create_trapezoid_points(center_x, center_y, preview_size, preview_size)
                     
                     pygame.draw.polygon(surface, comp_config["icon_color"], points)
                     pygame.draw.polygon(surface, darken_color(comp_config["icon_color"], 0.7), points, 2)
@@ -1068,9 +1059,25 @@ class SidebarComponent:
                     label_rect = label_surface.get_rect(center=(center_x, center_y))
                     surface.blit(label_surface, label_rect)
                     
-                    # Draw component description
-                    desc_surface = desc_font.render(comp_config["description"], True, SIDEBAR_TEXT)
+                    # Draw component description with text truncation
+                    description_text = comp_config["description"]
                     desc_x = center_x + preview_size + 10
+                    available_width = instance_rect.width - (desc_x - instance_rect.x) - 10  # 10px right margin
+                    
+                    # Truncate text if it's too long
+                    if desc_font.size(description_text)[0] > available_width:
+                        # Binary search for the maximum characters that fit
+                        left, right = 0, len(description_text)
+                        while left < right:
+                            mid = (left + right + 1) // 2
+                            test_text = description_text[:mid] + "..." if mid < len(description_text) else description_text
+                            if desc_font.size(test_text)[0] <= available_width:
+                                left = mid
+                            else:
+                                right = mid - 1
+                        description_text = description_text[:left] + "..." if left < len(description_text) else description_text
+                    
+                    desc_surface = desc_font.render(description_text, True, SIDEBAR_TEXT)
                     desc_y = instance_rect.centery - desc_surface.get_height() // 2
                     surface.blit(desc_surface, (desc_x, desc_y))
                     

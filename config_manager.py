@@ -2,36 +2,9 @@ import pygame
 import sqlite3
 import json
 from datetime import datetime
+from constants import *  # Import shared constants
 
-# Colors (matching pyPSA_db.py style)
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-GREEN = (0, 200, 0)
-RED = (200, 0, 0)
-BLUE = (0, 0, 255)
-GREY = (200, 200, 200)
-CONFIG_BG = (93, 194, 237)  # Sky blue background
-CONFIG_ITEM_BG = (60, 60, 60)  # Lighter gray for parameters
-CONFIG_ITEM_HOVER = (80, 80, 80)  # Hover state
-CONFIG_HIGHLIGHT = (0, 200, 0)  # Keep green highlight
-PANEL_BG = (30, 30, 30)  # Dark panel background
-COMPONENT_BG = (40, 40, 40)  # Darker gray for components
-COMPONENT_HOVER = (55, 55, 55)  # Component hover state
-VALUE_COLOR = (220, 220, 220)  # Lighter color for values
-UNIT_COLOR = (160, 160, 160)  # Subtle color for units
-
-# Screen settings
-SCREEN_WIDTH = 1600  # Changed from 1050 to match pyPSA_db.py
-SCREEN_HEIGHT = 900  # Changed from 750 to match pyPSA_db.py
-CONFIG_ITEM_HEIGHT = 60
-CONFIG_ITEM_PADDING = 15
-CONFIG_SECTION_MARGIN = 40
-
-# Button dimensions
-BUTTON_HEIGHT = 40
-BUTTON_WIDTH = 180
-BUTTON_MARGIN = 20
-
+# Configuration-specific constants that aren't in the main constants file
 DEFAULT_CONFIGS = {
     "SUPPLIER": {
         "p_nom_mw": {
@@ -155,7 +128,7 @@ class ConfigurationManager:
         
         self.conn.commit()
 
-    def load_configs(self):
+    def load_configs(self): 
         """Load configurations from database, falling back to defaults if not found"""
         self.current_configs = {}
         c = self.conn.cursor()
@@ -291,7 +264,7 @@ class ConfigurationScreen:
         title_y = 20  # Top margin
         title_height = 40  # Height for title area
         tabs_y = title_y + title_height + 20  # Space between title and tabs
-        tab_width = 150  # Width for each tab
+        tab_width = 400  # Much wider for longer text
         tab_height = 40  # Height for tabs
         left_margin = 20  # Left margin for all elements
         
@@ -333,6 +306,38 @@ class ConfigurationScreen:
             BUTTON_HEIGHT
         )
 
+    def truncate_text_to_fit(self, text, font, max_width, padding=10):
+        """Truncate text to fit within the specified width with padding.
+        Uses binary search for efficiency, same as sidebar implementation."""
+        # Check if full text fits
+        full_width = font.size(text)[0]
+        available_width = max_width - padding
+        
+        if full_width <= available_width:
+            return text
+        
+        # Binary search for maximum fitting length
+        left, right = 0, len(text)
+        best_length = 0
+        
+        while left <= right:
+            mid = (left + right) // 2
+            test_text = text[:mid] + "..." if mid < len(text) else text[:mid]
+            test_width = font.size(test_text)[0]
+            
+            if test_width <= available_width:
+                best_length = mid
+                left = mid + 1
+            else:
+                right = mid - 1
+        
+        if best_length == 0:
+            return "..."
+        elif best_length < len(text):
+            return text[:best_length] + "..."
+        else:
+            return text
+
     def draw(self, surface):
         """Draw the configuration screen"""
         # First fill with solid color to prevent background bleed-through
@@ -363,14 +368,16 @@ class ConfigurationScreen:
         
         # Draw tabs
         for tab, rect, text in [
-            ("Parameters", self.parameters_tab, "Parameters"),
-            ("Instances", self.instances_tab, "Instances")
+            ("Parameters", self.parameters_tab, "Base Components"),
+            ("Instances", self.instances_tab, "Saved Components")
         ]:
             color = CONFIG_HIGHLIGHT if self.active_tab == tab else CONFIG_ITEM_BG
             pygame.draw.rect(surface, color, rect, border_radius=8)  # More rounded corners
             # Add white border like main menu
             pygame.draw.rect(surface, WHITE, rect, width=2, border_radius=8)
-            text_surface = self.header_font.render(text, True, WHITE)
+            # Truncate tab text to fit (though should not be needed now with longer buttons)
+            truncated_text = self.truncate_text_to_fit(text, self.header_font, rect.width)
+            text_surface = self.header_font.render(truncated_text, True, WHITE)
             text_rect = text_surface.get_rect(center=rect.center)
             surface.blit(text_surface, text_rect)
         
@@ -379,14 +386,18 @@ class ConfigurationScreen:
             pygame.draw.rect(surface, CONFIG_ITEM_BG, self.save_as_button, border_radius=8)  # More rounded corners
             # Add white border like main menu
             pygame.draw.rect(surface, WHITE, self.save_as_button, width=2, border_radius=8)
-            save_text = self.item_font.render("Save As...", True, WHITE)
+            # Truncate button text to fit
+            save_text_truncated = self.truncate_text_to_fit("Save As...", self.item_font, self.save_as_button.width)
+            save_text = self.item_font.render(save_text_truncated, True, WHITE)
             save_rect = save_text.get_rect(center=self.save_as_button.center)
             surface.blit(save_text, save_rect)
             
             pygame.draw.rect(surface, CONFIG_ITEM_BG, self.reset_all_button, border_radius=8)  # More rounded corners
             # Add white border like main menu
             pygame.draw.rect(surface, WHITE, self.reset_all_button, width=2, border_radius=8)
-            reset_text = self.item_font.render("Reset All", True, WHITE)
+            # Truncate button text to fit
+            reset_text_truncated = self.truncate_text_to_fit("Reset All", self.item_font, self.reset_all_button.width)
+            reset_text = self.item_font.render(reset_text_truncated, True, WHITE)
             reset_rect = reset_text.get_rect(center=self.reset_all_button.center)
             surface.blit(reset_text, reset_rect)
         
@@ -406,8 +417,10 @@ class ConfigurationScreen:
                 color = CONFIG_HIGHLIGHT if component_type == self.selected_component else COMPONENT_BG
                 pygame.draw.rect(surface, color, component_rect, border_radius=8)  # More rounded corners
                 
-                # Component name with better styling
-                name_surface = self.item_font.render(component_type.replace("_", " "), True, WHITE)
+                # Component name with text truncation
+                component_display_name = component_type.replace("_", " ")
+                truncated_name = self.truncate_text_to_fit(component_display_name, self.item_font, component_width)
+                name_surface = self.item_font.render(truncated_name, True, WHITE)
                 surface.blit(name_surface, (30, y + (item_height - name_surface.get_height()) // 2))
                 
                 # Draw parameters side by side to the right of component (always show them)
@@ -429,8 +442,10 @@ class ConfigurationScreen:
                         units_text = param_data['units']
                         value_color = VALUE_COLOR
                     
-                    # Draw parameter name (smaller, subtle)
-                    param_name_surface = self.item_font.render(param_name.replace("_", " "), True, WHITE)
+                    # Draw parameter name with truncation
+                    param_display_name = param_name.replace("_", " ")
+                    truncated_param_name = self.truncate_text_to_fit(param_display_name, self.item_font, param_width)
+                    param_name_surface = self.item_font.render(truncated_param_name, True, WHITE)
                     surface.blit(param_name_surface, (param_x + 10, y + 8))
                     
                     # Draw parameter value and units with better styling
@@ -496,33 +511,34 @@ class ConfigurationScreen:
                     color = CONFIG_HIGHLIGHT if instance == self.selected_instance else COMPONENT_BG
                     pygame.draw.rect(surface, color, row_rect, border_radius=5)
                     
-                    # Instance name
-                    name_text = instance[1][:16] + "..." if len(instance[1]) > 16 else instance[1]
-                    name_surface = self.item_font.render(name_text, True, WHITE)
+                    # Instance name with proper truncation
+                    truncated_name = self.truncate_text_to_fit(instance[1], self.item_font, name_col_width)
+                    name_surface = self.item_font.render(truncated_name, True, WHITE)
                     surface.blit(name_surface, (20, y + (CONFIG_ITEM_HEIGHT - name_surface.get_height()) // 2))
                     
-                    # Component type - no truncation now
+                    # Component type with truncation
                     type_text = instance[3].replace("_", " ")
-                    type_surface = self.item_font.render(type_text, True, GREY)
+                    truncated_type = self.truncate_text_to_fit(type_text, self.item_font, type_col_width)
+                    type_surface = self.item_font.render(truncated_type, True, GREY)
                     surface.blit(type_surface, (20 + name_col_width, y + (CONFIG_ITEM_HEIGHT - type_surface.get_height()) // 2))
                     
-                    # Description
+                    # Description with proper truncation
                     desc_text = instance[2] if instance[2] else "No description"
-                    desc_text = desc_text[:22] + "..." if len(desc_text) > 22 else desc_text
-                    desc_surface = self.item_font.render(desc_text, True, GREY)
+                    truncated_desc = self.truncate_text_to_fit(desc_text, self.item_font, desc_col_width)
+                    desc_surface = self.item_font.render(truncated_desc, True, GREY)
                     surface.blit(desc_surface, (20 + name_col_width + type_col_width, y + (CONFIG_ITEM_HEIGHT - desc_surface.get_height()) // 2))
                     
-                    # Parameters - show more parameters with wider column
+                    # Parameters with proper truncation
                     try:
                         params = json.loads(instance[4])  # parameters column
                         param_text = ""
                         for key, value in params.items():  # Show all parameters
                             param_text += f"{key}: {value:.1f} "
-                        param_text = param_text[:55] + "..." if len(param_text) > 55 else param_text
+                        truncated_params = self.truncate_text_to_fit(param_text, self.item_font, params_col_width)
                     except:
-                        param_text = "Invalid data"
+                        truncated_params = "Invalid data"
                     
-                    params_surface = self.item_font.render(param_text, True, GREY)
+                    params_surface = self.item_font.render(truncated_params, True, GREY)
                     surface.blit(params_surface, (20 + name_col_width + type_col_width + desc_col_width, y + (CONFIG_ITEM_HEIGHT - params_surface.get_height()) // 2))
                     
                     # Actions (Delete button)
@@ -555,7 +571,9 @@ class ConfigurationScreen:
         pygame.draw.rect(surface, CONFIG_ITEM_BG, self.main_menu_button, border_radius=8)  # More rounded corners
         # Add white border like main menu
         pygame.draw.rect(surface, WHITE, self.main_menu_button, width=2, border_radius=8)
-        menu_text = self.item_font.render("Main Menu", True, WHITE)
+        # Truncate main menu button text to fit
+        truncated_menu_text = self.truncate_text_to_fit("Main Menu", self.item_font, self.main_menu_button.width)
+        menu_text = self.item_font.render(truncated_menu_text, True, WHITE)
         menu_rect = menu_text.get_rect(center=self.main_menu_button.center)
         surface.blit(menu_text, menu_rect)
         
