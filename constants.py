@@ -65,7 +65,7 @@ BUTTON_HOVER_COLOR = (150, 150, 150)
 BUTTON_TEXT_COLOR = WHITE
 
 # === ENTITY SETTINGS ===
-SUPPLIER_SIZE = 60
+POWER_STATION_SIZE = 60
 CONSUMER_SIZE = 45
 CONNECTION_COLOR = GREY
 CONNECTION_THICKNESS = 3
@@ -99,10 +99,10 @@ CONFIG_SECTION_MARGIN = 40
 
 # === PYPSA SIMULATION SETTINGS ===
 SIM_STEP_INTERVAL = 1
-DEFAULT_SUPPLIER_P_GENERATION = 20
-DEFAULT_SUPPLIER_Q_CAPABILITY = 15
-DEFAULT_SUPPLIER_P_CAPACITY = 1000
-SUPPLIER_LOW_THRESHOLD_PERCENT = 0.2
+DEFAULT_POWER_STATION_P_GENERATION = 20
+DEFAULT_POWER_STATION_Q_CAPABILITY = 15
+DEFAULT_POWER_STATION_P_CAPACITY = 1000
+POWER_STATION_LOW_THRESHOLD_PERCENT = 0.2
 
 # Consumer Settings
 DEFAULT_CONSUMER_P_DEMAND = 5
@@ -122,9 +122,9 @@ COMPONENT_TYPES = {
         "icon_color": WHITE,
         "is_section": True
     },
-    "SUPPLIER": {
-        "label": "S",
-        "description": "Power Supplier",
+    "POWER_STATION": {
+        "label": "PS",
+        "description": "Power Station",
         "icon_color": GREEN,
         "is_section": False
     },
@@ -162,7 +162,7 @@ Controls:
 - Left Click on Grid: Select placement area
 - Click Component: Place selected component at highlighted area
 - Shift + Left Click: Select consumer to connect
-- Left Click on Supplier: Complete connection
+- Left Click on Power Station: Complete connection
 - Left Click Empty Space: Cancel connection
 - ESC: Cancel selection or connection
 
@@ -193,6 +193,44 @@ def to_isometric(grid_x, grid_y):
     iso_x = (grid_x - grid_y) * TILE_WIDTH
     iso_y = (grid_x + grid_y) * TILE_HEIGHT
     return iso_x, iso_y
+
+def create_trapezoid_points(center_x, center_y, width, height):
+    """Create 3D trapezoid points based on user's specification.
+    Creates a 3D box effect with nearside (bottom) and farside (top) where farside is 80% width."""
+    
+    # Tommy's algorithm implementation
+    nearside_box_length = width
+    half_nearside_length = nearside_box_length / 2
+    box_height = half_nearside_length / 3
+    
+    # Use the calculated box_height instead of the passed height parameter
+    actual_height = box_height
+    
+    # Nearside (bottom edge - closer to user)
+    nearside_middle_point_x = center_x
+    nearside_middle_point_y = center_y + (actual_height // 2)  # Bottom of the shape
+    
+    nearside_left_x = nearside_middle_point_x - half_nearside_length
+    nearside_left_y = nearside_middle_point_y
+    nearside_right_x = nearside_middle_point_x + half_nearside_length
+    nearside_right_y = nearside_middle_point_y
+    
+    # Farside (top edge - further from user)
+    farside_middle_point_y = center_y - (actual_height // 2)  # Top of the shape
+    farside_left_x = nearside_middle_point_x - (half_nearside_length * 0.8)
+    farside_right_x = nearside_middle_point_x + (half_nearside_length * 0.8)
+    farside_left_y = farside_middle_point_y
+    farside_right_y = farside_middle_point_y
+    
+    # Create trapezoid points (clockwise from top-left)
+    points = [
+        (farside_left_x, farside_left_y),      # Top left (farside)
+        (farside_right_x, farside_right_y),    # Top right (farside)
+        (nearside_right_x, nearside_right_y),  # Bottom right (nearside)
+        (nearside_left_x, nearside_left_y)     # Bottom left (nearside)
+    ]
+    
+    return points
 
 # === PYGAME RECTS (computed once) ===
 def get_menu_rect():

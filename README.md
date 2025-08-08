@@ -40,6 +40,82 @@ After clicking "Connect," you should see the Energy Simulator application interf
 
 > **Tip:** The simulation window might not perfectly fit your browser. You can use your browser's built-in zoom controls (`Ctrl` and `+` or `-` on Windows/Linux, `Cmd` and `+` or `-` on Mac) to resize the view to your liking.
 
+## Troubleshooting
+
+### If you see either of these errors in your terminal:
+
+```
+exec: "/app/start.sh": permission denied
+```
+or
+```
+exec /app/start.sh: no such file or directory
+```
+
+It means the `start.sh` file doesn't have execute permissions. Here's how to fix it:
+
+1. **On Windows:** Use Git to set the permissions:
+
+   ```bash
+   git update-index --chmod=+x start.sh
+   ```
+
+2. **On macOS/Linux:** Run this command in the project folder:
+
+   ```bash
+   chmod +x start.sh
+   ```
+
+3. Then rebuild the image:
+
+   ```bash
+   docker compose build
+   ```
+
+**What to Expect:** After running these commands, the container should start without permission errors.have to worry about complicated setup or installations.
+
+## Prerequisites
+
+Before you begin, make sure you have the following installed:
+
+- [Docker](https://docs.docker.com/get-docker/)
+- [Docker Compose](https://docs.docker.com/compose/install/) (This is usually included with Docker Desktop)
+
+## Getting Started
+
+Follow these steps to get the simulation up and running.
+
+### Step 1: Start the Simulation
+
+First, we'll build the environment and start the application.
+
+1.  Open a terminal or command prompt in the project's main directory.
+2.  Run the following command:
+    ```bash
+    docker-compose up --build
+    ```
+    **What to Expect:** You will see a lot of text scroll by in your terminal. This is normal! Docker is downloading the necessary components and setting up the environment for the first time. You'll see messages about packages being installed and the container being created.
+
+    The process is successful when the terminal output stops scrolling and you see log messages from the application, such as `pygame... Hello from the pygame community` and `The VNC desktop is...`. This means the simulation is running inside the container.
+
+### Step 2: View in Your Browser
+
+Now that the simulation is running, you can view it in your web browser.
+
+1.  Open your favorite web browser (like Chrome, Firefox, or Edge).
+2.  Navigate to this address: **[http://localhost:6080/vnc.html](http://localhost:6080/vnc.html)**
+3.  You will see a screen with the **noVNC** logo and a **Connect** button. Click it.
+
+### Step 3: Interact with the Simulation
+
+After clicking "Connect," you should see the Energy Simulator application interface inside your browser window.
+
+> **Zoom Controls:** The simulation window might not perfectly fit your browser. Here are ways to zoom in/out:
+> - **noVNC Toolbar**: Look for the small toolbar on the left side of the VNC window - it has zoom controls (select Settings>Scaling Mode: local scale)
+> - **Right-click Menu**: Right-click anywhere in the VNC window and look for "Scaling" or "Zoom" options  
+> - **Browser Menu**: Use your browser's main menu (≡ button) → Zoom instead of keyboard shortcuts
+> - **Mouse Wheel**: Try `Ctrl` + mouse wheel while **not** clicking inside the VNC window
+
 ## How It All Works (The Magic Explained)
 
 Curious about what's happening in the background? Here’s a simple breakdown:

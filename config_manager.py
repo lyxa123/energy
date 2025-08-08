@@ -6,7 +6,7 @@ from constants import *  # Import shared constants
 
 # Configuration-specific constants that aren't in the main constants file
 DEFAULT_CONFIGS = {
-    "SUPPLIER": {
+    "POWER_STATION": {
         "p_nom_mw": {
             "default": 1000.0,
             "min": 100.0,
@@ -69,6 +69,220 @@ DEFAULT_CONFIGS = {
             "description": "Power Factor",
             "units": "pu"
         }
+    },
+    "TRANSMISSION_LINE": {
+        "voltage_kv": {
+            "default": 500.0,
+            "min": 230.0,
+            "max": 800.0,
+            "description": "Transmission Voltage",
+            "units": "kV"
+        },
+        "resistance_ohm_km": {
+            "default": 0.03,
+            "min": 0.01,
+            "max": 0.1,
+            "description": "Resistance per km",
+            "units": "Ω/km"
+        },
+        "reactance_ohm_km": {
+            "default": 0.3,
+            "min": 0.1,
+            "max": 0.5,
+            "description": "Reactance per km",
+            "units": "Ω/km"
+        }
+    },
+    "SUBSTATION": {
+        "voltage_primary_kv": {
+            "default": 230.0,
+            "min": 110.0,
+            "max": 500.0,
+            "description": "Primary Voltage",
+            "units": "kV"
+        },
+        "voltage_secondary_kv": {
+            "default": 69.0,
+            "min": 11.0,
+            "max": 138.0,
+            "description": "Secondary Voltage",
+            "units": "kV"
+        },
+        "capacity_mva": {
+            "default": 100.0,
+            "min": 10.0,
+            "max": 1000.0,
+            "description": "Transformer Capacity",
+            "units": "MVA"
+        }
+    },
+    "STEP_UP_TRANSFORMER": {
+        "primary_voltage_kv": {
+            "default": 22.0,
+            "min": 11.0,
+            "max": 69.0,
+            "description": "Primary Voltage",
+            "units": "kV"
+        },
+        "secondary_voltage_kv": {
+            "default": 230.0,
+            "min": 110.0,
+            "max": 500.0,
+            "description": "Secondary Voltage",
+            "units": "kV"
+        },
+        "capacity_mva": {
+            "default": 50.0,
+            "min": 5.0,
+            "max": 500.0,
+            "description": "Transformer Capacity",
+            "units": "MVA"
+        }
+    },
+    "STEP_DOWN_TRANSFORMER": {
+        "primary_voltage_kv": {
+            "default": 69.0,
+            "min": 22.0,
+            "max": 138.0,
+            "description": "Primary Voltage",
+            "units": "kV"
+        },
+        "secondary_voltage_kv": {
+            "default": 11.0,
+            "min": 0.4,
+            "max": 22.0,
+            "description": "Secondary Voltage",
+            "units": "kV"
+        },
+        "capacity_mva": {
+            "default": 10.0,
+            "min": 1.0,
+            "max": 100.0,
+            "description": "Transformer Capacity",
+            "units": "MVA"
+        }
+    },
+    "POWER_LINE": {
+        "voltage_kv": {
+            "default": 69.0,
+            "min": 11.0,
+            "max": 138.0,
+            "description": "Line Voltage",
+            "units": "kV"
+        },
+        "resistance_ohm_km": {
+            "default": 0.1,
+            "min": 0.05,
+            "max": 0.3,
+            "description": "Resistance per km",
+            "units": "Ω/km"
+        },
+        "current_capacity_a": {
+            "default": 500.0,
+            "min": 100.0,
+            "max": 2000.0,
+            "description": "Current Capacity",
+            "units": "A"
+        }
+    },
+    "POWER_POLE": {
+        "height_m": {
+            "default": 15.0,
+            "min": 8.0,
+            "max": 50.0,
+            "description": "Pole Height",
+            "units": "m"
+        },
+        "voltage_rating_kv": {
+            "default": 69.0,
+            "min": 11.0,
+            "max": 138.0,
+            "description": "Voltage Rating",
+            "units": "kV"
+        },
+        "load_capacity_kg": {
+            "default": 2000.0,
+            "min": 500.0,
+            "max": 10000.0,
+            "description": "Load Capacity",
+            "units": "kg"
+        }
+    }
+}
+
+# Component Types for UI - unified definition
+COMPONENT_TYPES = {
+    "DEFAULT_COMPONENTS": {
+        "label": "▼",
+        "description": "Base Components",
+        "icon_color": (255, 255, 255),  # WHITE
+        "is_section": True
+    },
+    "POWER_STATION": {
+        "label": "PS",
+        "description": "Power Station",
+        "icon_color": (0, 255, 0),  # GREEN
+        "is_section": False
+    },
+    "INDUCTIVE_CONSUMER": {
+        "label": "CI",
+        "description": "Inductive Load",
+        "icon_color": (0, 0, 255),  # BLUE
+        "is_section": False
+    },
+    "CAPACITIVE_CONSUMER": {
+        "label": "CC",
+        "description": "Capacitive Load",
+        "icon_color": (0, 0, 255),  # BLUE
+        "is_section": False
+    },
+    "RESISTIVE_CONSUMER": {
+        "label": "CR",
+        "description": "Resistive Load",
+        "icon_color": (0, 0, 255),  # BLUE
+        "is_section": False
+    },
+    "TRANSMISSION_LINE": {
+        "label": "TL",
+        "description": "Transmission Line",
+        "icon_color": (255, 165, 0),  # ORANGE
+        "is_section": False
+    },
+    "SUBSTATION": {
+        "label": "SS",
+        "description": "Substation",
+        "icon_color": (128, 0, 128),  # PURPLE
+        "is_section": False
+    },
+    "STEP_UP_TRANSFORMER": {
+        "label": "SU",
+        "description": "Step-Up Transformer",
+        "icon_color": (255, 255, 0),  # YELLOW
+        "is_section": False
+    },
+    "STEP_DOWN_TRANSFORMER": {
+        "label": "SD",
+        "description": "Step-Down Transformer",
+        "icon_color": (255, 255, 0),  # YELLOW
+        "is_section": False
+    },
+    "POWER_LINE": {
+        "label": "PL",
+        "description": "Power Line",
+        "icon_color": (139, 69, 19),  # BROWN
+        "is_section": False
+    },
+    "POWER_POLE": {
+        "label": "PP",
+        "description": "Power Pole",
+        "icon_color": (160, 160, 160),  # GRAY
+        "is_section": False
+    },
+    "SAVED_INSTANCES": {
+        "label": "▼",
+        "description": "Saved Components",
+        "icon_color": (255, 255, 0),  # YELLOW
+        "is_section": True
     }
 }
 

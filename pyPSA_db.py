@@ -18,47 +18,7 @@ logging.getLogger('pypsa.network.power_flow').setLevel(logging.WARNING)
 from constants import *
 
 # Add imports at the top
-from config_manager import ConfigurationManager, ConfigurationScreen, ConfigChangeObserver
-
-# Component Types
-COMPONENT_TYPES = {
-    "DEFAULT_COMPONENTS": {
-        "label": "▼",  # Changed to dropdown arrow
-        "description": "Default",  # Shortened
-        "icon_color": WHITE,
-        "is_section": True  # Mark as a section header
-    },
-    "SUPPLIER": {
-        "label": "S",
-        "description": "Power Supplier",
-        "icon_color": GREEN,
-        "is_section": False
-    },
-    "INDUCTIVE_CONSUMER": {
-        "label": "CI",
-        "description": "Inductive Load",
-        "icon_color": BLUE,
-        "is_section": False
-    },
-    "CAPACITIVE_CONSUMER": {
-        "label": "CC",
-        "description": "Capacitive Load",
-        "icon_color": BLUE,
-        "is_section": False
-    },
-    "RESISTIVE_CONSUMER": {
-        "label": "CR",
-        "description": "Resistive Load",
-        "icon_color": BLUE,
-        "is_section": False
-    },
-    "SAVED_INSTANCES": {
-        "label": "▼",  # Changed to dropdown arrow
-        "description": "Saved",  # Shortened
-        "icon_color": YELLOW,
-        "is_section": True  # Mark as a section header
-    }
-}
+from config_manager import ConfigurationManager, ConfigurationScreen, ConfigChangeObserver, COMPONENT_TYPES
 
 # Sidebar Settings from pyPSA_3D.py
 FPS = 60
@@ -98,7 +58,7 @@ BUTTON_HOVER_COLOR = (150, 150, 150)
 BUTTON_TEXT_COLOR = WHITE
 
 # Entity Settings
-SUPPLIER_SIZE = 60
+POWER_STATION_SIZE = 60
 CONSUMER_SIZE = 45
 CONNECTION_COLOR = GREY
 CONNECTION_THICKNESS = 3
@@ -106,10 +66,10 @@ ENTITY_FONT_SIZE = 16
 
 # --- PyPSA Settings ---
 SIM_STEP_INTERVAL = 1
-DEFAULT_SUPPLIER_P_GENERATION = 20
-DEFAULT_SUPPLIER_Q_CAPABILITY = 15
-DEFAULT_SUPPLIER_P_CAPACITY = 1000
-SUPPLIER_LOW_THRESHOLD_PERCENT = 0.2
+DEFAULT_POWER_STATION_P_GENERATION = 20
+DEFAULT_POWER_STATION_Q_CAPABILITY = 15
+DEFAULT_POWER_STATION_P_CAPACITY = 1000
+POWER_STATION_LOW_THRESHOLD_PERCENT = 0.2
 
 # Consumer Settings
 DEFAULT_CONSUMER_P_DEMAND = 5
@@ -132,7 +92,7 @@ Controls:
 - Left Click on Grid: Select placement area
 - Click Component: Place selected component at highlighted area
 - Shift + Left Click: Select consumer to connect
-- Left Click on Supplier: Complete connection
+- Left Click on Power Station: Complete connection
 - Left Click Empty Space: Cancel connection
 - ESC: Cancel selection or connection
 
@@ -164,7 +124,7 @@ CONNECTION_OFFSET = 16
 # --- Global Variables ---
 network = None
 pygame_entities = []
-supplier_entity = None
+power_station_entity = None
 show_help = False
 connecting_consumer = None
 temp_connection_line_end = None
@@ -384,10 +344,10 @@ class Entity(pygame.sprite.Sprite):
     def draw_connections(self, surface):
         pass 
 
-# Modify the PowerSupplier class to use configurations
-class PowerSupplier(Entity):
+# Modify the PowerStation class to use configurations
+class PowerStation(Entity):
     def __init__(self, grid_x, grid_y, bus_name):
-        super().__init__(grid_x, grid_y, SUPPLIER_SIZE, GREEN, "S", bus_name, "supplier")
+        super().__init__(grid_x, grid_y, POWER_STATION_SIZE, GREEN, "PS", bus_name, "power_station")
         self.connected_consumers = []
         self.total_p_demand = 0
         self.total_q_demand = 0
@@ -395,8 +355,8 @@ class PowerSupplier(Entity):
         
         # Use configured values
         if config_manager:
-            self.p_nom = config_manager.current_configs["SUPPLIER"]["p_nom_mw"]
-            self.v_nom = config_manager.current_configs["SUPPLIER"]["v_nom_kv"]
+            self.p_nom = config_manager.current_configs["POWER_STATION"]["p_nom_mw"]
+            self.v_nom = config_manager.current_configs["POWER_STATION"]["v_nom_kv"]
 
     def update(self):
         # Calculate total demands - exactly as in pyPSA.py
@@ -404,7 +364,7 @@ class PowerSupplier(Entity):
         self.total_q_demand = sum(c.q_demand_rate for c in self.connected_consumers if c.is_connected)
         
         # Calculate loading percentage - based only on P
-        loading_percent = self.total_p_demand / DEFAULT_SUPPLIER_P_CAPACITY
+        loading_percent = self.total_p_demand / DEFAULT_POWER_STATION_P_CAPACITY
         
         # Simple voltage calculation - exact formula from pyPSA.py
         self.voltage_pu = 1.0 - (loading_percent * 0.1) - (abs(self.total_q_demand) * 0.02)
@@ -413,9 +373,9 @@ class PowerSupplier(Entity):
         if loading_percent > 0.9 or self.voltage_pu < 0.95:
             self.update_status_color(RED)
             if loading_percent > 0.9:
-                add_log_message(f"Warning: High loading at supplier: {loading_percent*100:.1f}%")
+                add_log_message(f"Warning: High loading at power station: {loading_percent*100:.1f}%")
             if self.voltage_pu < 0.95:
-                add_log_message(f"Warning: Low voltage at supplier: {self.voltage_pu:.2f} pu")
+                add_log_message(f"Warning: Low voltage at power station: {self.voltage_pu:.2f} pu")
         elif loading_percent > 0.7 or self.voltage_pu < 0.98:
             self.update_status_color(YELLOW)
         else:
@@ -426,7 +386,7 @@ class PowerSupplier(Entity):
     def connect_consumer(self, consumer):
         if consumer not in self.connected_consumers:
             self.connected_consumers.append(consumer)
-            add_log_message(f"Supplier connected to {consumer.label_text} (P={consumer.p_demand_rate:.1f}MW, Q={consumer.q_demand_rate:.1f}MVAr)")
+            add_log_message(f"Power Station connected to {consumer.label_text} (P={consumer.p_demand_rate:.1f}MW, Q={consumer.q_demand_rate:.1f}MVAr)")
             self.update()
 
 class PowerConsumer(Entity):
@@ -463,18 +423,18 @@ class PowerConsumer(Entity):
             self.power_factor = DEFAULT_RESISTIVE_PF
             self.q_demand_rate = 0
         
-        self.connected_supplier = None  # Changed from connected_to to connected_supplier
+        self.connected_power_station = None  # Changed from connected_supplier to connected_power_station
         self.is_connected = False
 
-    def connect(self, supplier):
-        if supplier is not None:
-            self.connected_supplier = supplier  # Updated to use connected_supplier
+    def connect(self, power_station):
+        if power_station is not None:
+            self.connected_power_station = power_station  # Updated to use connected_power_station
             self.is_connected = True
-            supplier.connect_consumer(self)
+            power_station.connect_consumer(self)
             if network is not None:
                 try:
                     network.add("Line", f"line_{self.bus_name}",
-                            bus0=supplier.bus_name,
+                            bus0=power_station.bus_name,
                             bus1=self.bus_name,
                             x=0.1,
                             r=0.01)
@@ -491,10 +451,10 @@ class PowerConsumer(Entity):
             add_log_message(f"Connected {self.label_text} (P={self.p_demand_rate:.1f}MW, Q={self.q_demand_rate:.1f}MVAr)")
 
     def disconnect(self):
-        if self.connected_supplier is not None:  # Updated to use connected_supplier
-            if self in self.connected_supplier.connected_consumers:
-                self.connected_supplier.connected_consumers.remove(self)
-            self.connected_supplier = None  # Updated to use connected_supplier
+        if self.connected_power_station is not None:  # Updated to use connected_power_station
+            if self in self.connected_power_station.connected_consumers:
+                self.connected_power_station.connected_consumers.remove(self)
+            self.connected_power_station = None  # Updated to use connected_power_station
             self.is_connected = False
             if network is not None:
                 try:
@@ -515,9 +475,9 @@ class PowerConsumer(Entity):
     def update(self):
         if not self.is_connected:
             self.update_status_color(BLUE)  # Original color
-        elif self.connected_supplier:  # Updated to use connected_supplier
-            # Direct voltage from supplier - no additional drops
-            voltage = self.connected_supplier.voltage_pu  # Updated to use connected_supplier
+        elif self.connected_power_station:  # Updated to use connected_power_station
+            # Direct voltage from power station - no additional drops
+            voltage = self.connected_power_station.voltage_pu  # Updated to use connected_power_station
             
             # Direct threshold-based color updates - exact thresholds from pyPSA.py
             if voltage < 0.95:
@@ -530,13 +490,13 @@ class PowerConsumer(Entity):
         self.redraw()
 
     def draw_connections(self, surface):
-        if self.connected_supplier:  # Updated to use connected_supplier
+        if self.connected_power_station:  # Updated to use connected_power_station
             start_pos = (self.rect.x + self.rect.width//2, self.rect.y + self.rect.height//2)
-            end_pos = (self.connected_supplier.rect.x + self.connected_supplier.rect.width//2,
-                      self.connected_supplier.rect.y + self.connected_supplier.rect.height//2)
+            end_pos = (self.connected_power_station.rect.x + self.connected_power_station.rect.width//2,
+                      self.connected_power_station.rect.y + self.connected_power_station.rect.height//2)
             
             # Exact voltage-based color calculation from pyPSA.py
-            voltage = self.connected_supplier.voltage_pu
+            voltage = self.connected_power_station.voltage_pu
             if voltage >= 0.98:
                 line_color = GREEN
             elif voltage >= 0.95:
@@ -569,25 +529,25 @@ def initialize_network():
         network.add("Generator", "Slack_Gen",
                     bus="Slack",
                     control="Slack",
-                    p_nom=DEFAULT_SUPPLIER_P_CAPACITY,
+                    p_nom=DEFAULT_POWER_STATION_P_CAPACITY,
                     p_set=0)
         
         add_log_message("Network initialized with slack bus")
     except Exception as e:
         add_log_message(f"Failed to initialize network: {str(e)}")
 
-def add_supplier_to_network(grid_x, grid_y):
-    global supplier_entity, network
-    if supplier_entity is not None:
-        add_log_message("Only one supplier allowed")
+def add_power_station_to_network(grid_x, grid_y):
+    global power_station_entity, network
+    if power_station_entity is not None:
+        add_log_message("Only one power station allowed")
         return None
     
     if network is None:
         add_log_message("Network not initialized")
         return None
     
-    # Create a unique bus name for the supplier
-    bus_name = f"Supplier_Bus_{len(network.buses)}"
+    # Create a unique bus name for the power station
+    bus_name = f"PowerStation_Bus_{len(network.buses)}"
     
     # Add bus to PyPSA network if it doesn't exist
     if bus_name not in network.buses.index:
@@ -600,18 +560,18 @@ def add_supplier_to_network(grid_x, grid_y):
             "Generator",
             gen_name,
             bus=bus_name,
-            p_nom=DEFAULT_SUPPLIER_P_CAPACITY,
+            p_nom=DEFAULT_POWER_STATION_P_CAPACITY,
             control="PV",  # Voltage-controlled generator
-            p_set=DEFAULT_SUPPLIER_P_GENERATION,
+            p_set=DEFAULT_POWER_STATION_P_GENERATION,
             v_set=1.0  # Per unit voltage setpoint
         )
     
     # Create PyGame entity - pass grid coordinates directly
-    supplier_entity = PowerSupplier(grid_x, grid_y, bus_name)
-    pygame_entities.append(supplier_entity)
+    power_station_entity = PowerStation(grid_x, grid_y, bus_name)
+    pygame_entities.append(power_station_entity)
     
-    add_log_message(f"Added supplier at bus {bus_name}")
-    return supplier_entity
+    add_log_message(f"Added power station at bus {bus_name}")
+    return power_station_entity
 
 def add_consumer_to_network(grid_x, grid_y, consumer_type):
     if network is None:
@@ -672,10 +632,10 @@ def update_network():
         # Don't reinitialize network here as it breaks connections
 
 def reset_simulation():
-    global network, pygame_entities, supplier_entity, connecting_consumer, temp_connection_line_end
+    global network, pygame_entities, power_station_entity, connecting_consumer, temp_connection_line_end
     # Clear all entities
     pygame_entities.clear()
-    supplier_entity = None
+    power_station_entity = None
     connecting_consumer = None
     temp_connection_line_end = None
     # Reinitialize network
@@ -937,10 +897,16 @@ class SidebarComponent:
         # Set up default components if this is the DEFAULT_COMPONENTS component
         elif self.type == "DEFAULT_COMPONENTS":
             self.default_components = [
-                ("SUPPLIER", COMPONENT_TYPES["SUPPLIER"]),
+                ("POWER_STATION", COMPONENT_TYPES["POWER_STATION"]),
                 ("INDUCTIVE_CONSUMER", COMPONENT_TYPES["INDUCTIVE_CONSUMER"]),
                 ("CAPACITIVE_CONSUMER", COMPONENT_TYPES["CAPACITIVE_CONSUMER"]),
-                ("RESISTIVE_CONSUMER", COMPONENT_TYPES["RESISTIVE_CONSUMER"])
+                ("RESISTIVE_CONSUMER", COMPONENT_TYPES["RESISTIVE_CONSUMER"]),
+                ("TRANSMISSION_LINE", COMPONENT_TYPES["TRANSMISSION_LINE"]),
+                ("SUBSTATION", COMPONENT_TYPES["SUBSTATION"]),
+                ("STEP_UP_TRANSFORMER", COMPONENT_TYPES["STEP_UP_TRANSFORMER"]),
+                ("STEP_DOWN_TRANSFORMER", COMPONENT_TYPES["STEP_DOWN_TRANSFORMER"]),
+                ("POWER_LINE", COMPONENT_TYPES["POWER_LINE"]),
+                ("POWER_POLE", COMPONENT_TYPES["POWER_POLE"])
             ]
     
     def get_bottom(self):
@@ -1129,12 +1095,12 @@ class SidebarComponent:
                                 # Load instance parameters
                                 instance_params = json.loads(instance[4])  # parameters column
                                 
-                                if instance[3] == "SUPPLIER":  # component_type column
-                                    supplier = add_supplier_to_network(selected_grid_pos[0], selected_grid_pos[1])
-                                    if supplier and instance_params:
-                                        supplier.p_nom = instance_params.get("p_nom_mw", 1000.0)
-                                        supplier.v_nom = instance_params.get("v_nom_kv", 110.0)
-                                        for consumer in supplier.connected_consumers:
+                                if instance[3] == "POWER_STATION":  # component_type column
+                                    power_station = add_power_station_to_network(selected_grid_pos[0], selected_grid_pos[1])
+                                    if power_station and instance_params:
+                                        power_station.p_nom = instance_params.get("p_nom_mw", 1000.0)
+                                        power_station.v_nom = instance_params.get("v_nom_kv", 110.0)
+                                        for consumer in power_station.connected_consumers:
                                             consumer.update()
                                 else:
                                     consumer_type = None
@@ -1150,7 +1116,7 @@ class SidebarComponent:
                                         if consumer and instance_params:
                                             consumer.p_demand_rate = instance_params.get("p_demand_rate", 5.0)
                                             consumer.power_factor = instance_params.get("power_factor", 0.8)
-                                            if consumer.connected_supplier:
+                                            if consumer.connected_power_station:
                                                 consumer.update()
                                 
                                 selected_grid_pos = None
@@ -1166,9 +1132,9 @@ class SidebarComponent:
                                 SIDEBAR_ITEM_HEIGHT - 20
                             )
                             if instance_rect.collidepoint(event.pos) and selected_grid_pos:
-                                if comp_type == "SUPPLIER":
-                                    add_supplier_to_network(selected_grid_pos[0], selected_grid_pos[1])
-                                else:
+                                if comp_type == "POWER_STATION":
+                                    add_power_station_to_network(selected_grid_pos[0], selected_grid_pos[1])
+                                elif comp_type in ["INDUCTIVE_CONSUMER", "CAPACITIVE_CONSUMER", "RESISTIVE_CONSUMER"]:
                                     consumer_type = None
                                     if comp_type == "INDUCTIVE_CONSUMER":
                                         consumer_type = CONSUMER_TYPE_INDUCTIVE
@@ -1179,6 +1145,10 @@ class SidebarComponent:
                                     
                                     if consumer_type:
                                         add_consumer_to_network(selected_grid_pos[0], selected_grid_pos[1], consumer_type)
+                                elif comp_type in ["TRANSMISSION_LINE", "SUBSTATION", "STEP_UP_TRANSFORMER", "STEP_DOWN_TRANSFORMER", "POWER_LINE", "POWER_POLE"]:
+                                    # These components are configured but not yet implemented for placement
+                                    component_name = COMPONENT_TYPES[comp_type]["description"]
+                                    add_log_message(f"{component_name} placement not yet implemented - configurations available in settings")
                                 
                                 selected_grid_pos = None
                                 return True
@@ -1358,12 +1328,12 @@ def main():
                                     temp_connection_line_end = connecting_consumer.rect.center
                                     add_log_message(f"Connect C{connecting_consumer.bus_name}...")
                             elif connecting_consumer:
-                                # Try to connect to supplier
-                                if supplier_entity and supplier_entity.rect.collidepoint(mouse_pos):
-                                    connecting_consumer.connect(supplier_entity)
+                                # Try to connect to power station
+                                if power_station_entity and power_station_entity.rect.collidepoint(mouse_pos):
+                                    connecting_consumer.connect(power_station_entity)
                                 else:
                                     # Check if clicked empty space or different entity
-                                    if connecting_consumer.connected_supplier: # Updated to use connected_supplier
+                                    if connecting_consumer.connected_power_station: # Updated to use connected_power_station
                                         connecting_consumer.disconnect()
                                 connecting_consumer = None
                                 temp_connection_line_end = None
