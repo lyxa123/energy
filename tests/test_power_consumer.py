@@ -17,8 +17,8 @@ import math
 # Set pygame to headless mode for testing
 os.environ['SDL_VIDEODRIVER'] = 'dummy'
 
-# Add project root to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add the project root directory to the path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from entities.power_consumer import PowerConsumer
 from entities.power_station import PowerStation

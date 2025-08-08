@@ -226,3 +226,58 @@ Remove any old containers:
    ```
 
 ---
+
+## Project Structure
+
+The Energy City Simulator uses a modular architecture for better maintainability:
+
+```
+energy/
+├── pyPSA_db.py              # Main application entry point
+├── constants.py             # Shared constants and settings
+├── config_manager.py        # Configuration management
+├── entities/                # Power system entities
+│   ├── __init__.py
+│   ├── base_entity.py      # Base Entity class
+│   ├── power_station.py    # PowerStation implementation
+│   └── power_consumer.py   # PowerConsumer implementation
+├── graphics/                # Graphics and UI components
+│   ├── __init__.py
+│   ├── renderer_3d.py      # 3D isometric rendering
+│   ├── color_manager.py    # Color management and themes
+│   ├── ui_components.py    # UI components (buttons, panels, etc.)
+│   ├── layout_manager.py   # Screen layout management
+│   └── visual_effects.py   # Visual effects and animations
+├── tests/                   # Test suite
+│   ├── __init__.py
+│   ├── test_entities.py    # Entity tests
+│   ├── test_power_station.py
+│   ├── test_power_consumer.py
+│   └── test_graphics.py    # Graphics module tests
+├── run_tests.py            # Test runner script
+└── assets/                 # Images and resources
+```
+
+## Development and Testing
+
+To run the test suite locally (requires Python environment setup):
+
+```bash
+# Run all tests
+python run_tests.py
+
+# Run specific test file
+python run_tests.py tests/test_entities.py
+
+# Run with verbose output
+python run_tests.py -v
+```
+
+The project includes comprehensive test coverage:
+- **83 total tests** across all modules
+- Entity framework tests (11 tests)
+- Power station functionality tests (9 tests)  
+- Power consumer functionality tests (13 tests)
+- Graphics and UI component tests (50 tests)
+
+---
